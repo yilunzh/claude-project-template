@@ -70,14 +70,18 @@ claude-project-template/
 │   ├── hooks/               # Quality enforcement scripts
 │   │   ├── pre-commit-check.py
 │   │   ├── branch-check.py
+│   │   ├── uncommitted-changes-check.py
 │   │   ├── post-edit-verify.py
 │   │   ├── checkpoint-reminder.py
+│   │   ├── checkpoint-validator.py
 │   │   ├── completion-checklist.py
-│   │   └── session-handoff.py
+│   │   ├── session-handoff.py
+│   │   └── spec-update-check.py
 │   ├── commands/            # Custom slash commands
 │   │   └── example.md
 │   └── agents/              # Custom subagents
-│       └── test-first.md
+│       ├── test-first.md
+│       └── design-review.md
 ├── CLAUDE.md                # Development workflow
 ├── BRIEF.md                 # Project description (you edit this)
 ├── docs/
@@ -89,16 +93,19 @@ claude-project-template/
 
 ## Hooks
 
-The template includes 6 hooks that enforce the development workflow:
+The template includes 9 hooks that enforce the development workflow:
 
 | Hook | Type | Purpose |
 |------|------|---------|
 | `pre-commit-check.py` | Blocking | Runs tests + lint, blocks commits to main |
 | `branch-check.py` | Blocking | Prevents editing files on main branch |
+| `uncommitted-changes-check.py` | Advisory | Warns about uncommitted changes at session start |
 | `post-edit-verify.py` | Advisory | Reminds to run tests after edits |
 | `checkpoint-reminder.py` | Advisory | Reminds to checkpoint every 3-5 edits |
+| `checkpoint-validator.py` | Advisory | Validates checkpoint sections, resets step counter |
 | `completion-checklist.py` | Blocking | Ensures tests ran before session ends |
 | `session-handoff.py` | Blocking | Detects incomplete work, requires handoff |
+| `spec-update-check.py` | Stop | Triggers SPEC.md updates on key phrases |
 
 ### Language Detection
 

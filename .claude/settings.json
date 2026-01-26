@@ -10,7 +10,10 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git stash:*)",
-      "Bash(gh pr create:*)"
+      "Bash(git reset:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr checks:*)"
     ]
   },
   "mcpServers": {
@@ -62,6 +65,27 @@
             "timeout": 5000
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/checkpoint-validator.py\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/uncommitted-changes-check.py\"",
+            "timeout": 10000
+          }
+        ]
       }
     ],
     "Stop": [
@@ -79,6 +103,15 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-handoff.py\"",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/spec-update-check.py\"",
             "timeout": 10000
           }
         ]

@@ -119,6 +119,12 @@
 - **[Dependency 1]**: [What it's used for]
 - **[Dependency 2]**: [What it's used for]
 
+## Version History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 0.1 | [Date] | Initial specification |
+
 ---
 
 *This specification is maintained by Claude Code. Update it when completing features or making architectural decisions.*

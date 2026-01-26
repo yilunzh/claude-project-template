@@ -15,7 +15,7 @@ def main():
     # If no transcript available, allow but remind
     if not transcript:
         return {
-            "decision": "allow",
+            "continue": True,
             "message": "Reminder: Ensure you ran tests before finishing.",
         }
 
@@ -36,8 +36,8 @@ def main():
 
     if not test_ran:
         return {
-            "decision": "block",
-            "reason": "Tests haven't been run this session. "
+            "continue": False,
+            "stopReason": "Tests haven't been run this session. "
             "Run your project's test suite before finishing.",
         }
 
@@ -52,12 +52,12 @@ def main():
         # If there's no "passed" or "0 failed" after, tests might still be failing
         if "passed" not in remaining and "0 failed" not in remaining and "ok" not in remaining:
             return {
-                "decision": "block",
-                "reason": "Tests appear to be failing. "
+                "continue": False,
+                "stopReason": "Tests appear to be failing. "
                 "Fix failing tests before finishing.",
             }
 
-    return {"decision": "allow"}
+    return {"continue": True}
 
 
 if __name__ == "__main__":

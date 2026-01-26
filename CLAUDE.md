@@ -25,6 +25,13 @@ Before making ANY changes:
 
 Only small, trivial changes (typo fixes, config tweaks) can go directly to main.
 
+### Merge Requirements
+
+Before merging any PR:
+1. All CI checks must pass
+2. Wait for checks to complete — do NOT merge while checks are "in progress"
+3. If CI fails — fix issues in the branch, push, wait for CI again
+
 ### Phase 1: CLARIFY FIRST (Ask Questions Before Coding)
 
 Before writing ANY implementation code, you MUST:
@@ -93,6 +100,12 @@ Before saying "done":
 2. If user-facing changes: present options for review
 3. Mark todo items completed
 
+**Verification Efficiency:**
+- **Define "done" upfront**: Before starting, identify what verification is needed. Once met, stop.
+- **Trust existing tests**: If a relevant test passes, that's sufficient. Don't duplicate.
+- **One verification path**: Choose either existing test OR manual check. Not both.
+- **Don't over-verify**: More verification does not equal better. Sufficient verification = done.
+
 **For UI changes**, use Playwright to verify:
 1. Use `browser_navigate` to visit affected pages
 2. Use `browser_snapshot` to verify pages load correctly
@@ -133,10 +146,13 @@ Before saying "done":
 Custom hooks are in `.claude/hooks/`:
 - `pre-commit-check.py` - **Blocking**: Runs tests + lint; blocks direct commits to main
 - `branch-check.py` - **Blocking**: Prevents edits on main branch
+- `uncommitted-changes-check.py` - **Advisory**: Warns about uncommitted changes at session start (runs on first user prompt)
 - `post-edit-verify.py` - **Advisory**: Reminds to run tests after editing files
 - `checkpoint-reminder.py` - **Advisory**: Reminds to checkpoint every 3-5 edits
+- `checkpoint-validator.py` - **Advisory**: Validates checkpoint has required sections, resets step counter
 - `completion-checklist.py` - **Blocking**: Ensures tests were run before session ends
 - `session-handoff.py` - **Blocking**: Detects incomplete work, requires handoff
+- `spec-update-check.py` - Triggers SPEC.md updates on key phrases
 
 ## Custom Skills
 
@@ -144,7 +160,12 @@ Custom slash commands are in `.claude/commands/`. See `example.md` for the forma
 
 ## SPEC.md Updates
 
-After completing a feature, update `docs/SPEC.md`:
+After completing a feature, trigger docs updates by saying:
+- `/spec-update`, "feature complete", "update spec", "update documentation"
+
+The Stop hook gathers context (git changes, plan) and prompts for documentation updates.
+
+You can also manually update `docs/SPEC.md`:
 - Add feature to "Implemented" section
 - Document key architectural decisions
 - Update "Current State" as needed
