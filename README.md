@@ -144,6 +144,7 @@ The template includes ready-to-use slash commands:
 | `/commit-push-pr` | Complete workflow from staged changes to PR creation |
 | `/test-and-commit` | Run tests first, only commit if passing |
 | `/web-verify` | Playwright verification for web routes |
+| `/sync-templates` | Analyze project for improvements to propagate to templates |
 
 ### Adding Custom Commands
 
@@ -191,24 +192,25 @@ After Claude scaffolds your project:
 As you work on projects, you may discover workflow improvements (new hooks, refined rules, better processes). To propagate these back to the templates:
 
 1. Open the project in Claude Code
-2. Ask: "analyze this project for template improvements" or "sync improvements to templates"
+2. Run `/sync-templates` or ask "analyze this project for template improvements"
 3. Claude will:
    - Compare your project's CLAUDE.md, hooks, commands, and agents against the templates
-   - Identify improvements worth propagating
-   - Create PRs to update both `claude-project-template` and `cursor-project-template`
+   - Evaluate each difference for generalizability and value
+   - Recommend which improvements should become part of the default templates
+   - Apply approved changes to both `claude-project-template` and `cursor-project-template`
 
-No manual logging required - Claude analyzes the diffs on demand.
+No manual logging required - Claude analyzes on demand and you decide what to adopt.
 
-**What gets synced:**
-- Workflow improvements in CLAUDE.md
+**What might get synced:**
+- Workflow patterns that proved useful
 - New or improved hooks
-- New slash commands or agents
-- Process documentation updates
+- Broadly applicable commands or agents
+- Process documentation refinements
 
 **What stays project-specific:**
 - BRIEF.md content
 - docs/SPEC.md content
-- Project-specific commands tied to your tech stack
+- Tech-stack-specific commands
 
 ## MCP Servers
 
