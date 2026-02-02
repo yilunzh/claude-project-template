@@ -72,16 +72,23 @@ claude-project-template/
 │   │   ├── branch-check.py
 │   │   ├── uncommitted-changes-check.py
 │   │   ├── post-edit-verify.py
+│   │   ├── auto-format.py
 │   │   ├── checkpoint-reminder.py
 │   │   ├── checkpoint-validator.py
 │   │   ├── completion-checklist.py
 │   │   ├── session-handoff.py
-│   │   └── spec-update-check.py
+│   │   ├── spec-update-check.py
+│   │   └── implementation-plan-check.py
 │   ├── commands/            # Custom slash commands
+│   │   ├── commit-push-pr.md
+│   │   ├── test-and-commit.md
+│   │   ├── web-verify.md
 │   │   └── example.md
-│   └── agents/              # Custom subagents
-│       ├── test-first.md
-│       └── design-review.md
+│   ├── agents/              # Custom subagents
+│   │   ├── test-first.md
+│   │   └── design-review.md
+│   └── ideation/            # Structured ideation workflow
+│       └── IDEATION_PROCESS.md
 ├── CLAUDE.md                # Development workflow
 ├── BRIEF.md                 # Project description (you edit this)
 ├── docs/
@@ -93,7 +100,7 @@ claude-project-template/
 
 ## Hooks
 
-The template includes 9 hooks that enforce the development workflow:
+The template includes 11 hooks that enforce the development workflow:
 
 | Hook | Type | Purpose |
 |------|------|---------|
@@ -101,11 +108,13 @@ The template includes 9 hooks that enforce the development workflow:
 | `branch-check.py` | Blocking | Prevents editing files on main branch |
 | `uncommitted-changes-check.py` | Advisory | Warns about uncommitted changes at session start |
 | `post-edit-verify.py` | Advisory | Reminds to run tests after edits |
+| `auto-format.py` | Advisory | Auto-formats Python files with black/isort |
 | `checkpoint-reminder.py` | Advisory | Reminds to checkpoint every 3-5 edits |
 | `checkpoint-validator.py` | Advisory | Validates checkpoint sections, resets step counter |
 | `completion-checklist.py` | Blocking | Ensures tests ran before session ends |
 | `session-handoff.py` | Blocking | Detects incomplete work, requires handoff |
 | `spec-update-check.py` | Stop | Triggers SPEC.md updates on key phrases |
+| `implementation-plan-check.py` | Advisory | Reminds to update implementation plans |
 
 ### Language Detection
 
@@ -126,21 +135,45 @@ Hooks automatically detect your project type:
 
 ## Customization
 
-### Adding Skills
+### Built-in Commands
 
-Create `.claude/commands/your-skill.md`:
+The template includes ready-to-use slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/commit-push-pr` | Complete workflow from staged changes to PR creation |
+| `/test-and-commit` | Run tests first, only commit if passing |
+| `/web-verify` | Playwright verification for web routes |
+
+### Adding Custom Commands
+
+Create `.claude/commands/your-command.md`:
 
 ```markdown
----
-description: What this skill does
----
+# Command Name
 
-# Skill Name
+Instructions for Claude when this command is invoked.
 
-Instructions for Claude when this skill is invoked.
+## Steps
+1. Step one
+2. Step two
 ```
 
-Invoke with `/your-skill` in Claude Code.
+Invoke with `/your-command` in Claude Code.
+
+### Ideation Process
+
+For complex features, use the structured ideation workflow in `.claude/ideation/IDEATION_PROCESS.md`. This 7-phase process transforms ideas into implementation-ready packages:
+
+1. **Problem Discovery** - Understand WHY
+2. **Solution Definition** - Define WHAT
+3. **Design Discovery** - Establish visual language
+4. **Design Specification** - Detail HOW it looks
+5. **Architecture** - Define HOW it's built
+6. **Implementation Planning** - Create development roadmap
+7. **Handoff** - Package for implementation
+
+Create feature ideation folders at `.claude/ideation/<feature-name>/` with artifacts from each phase.
 
 ### Adding Patterns
 
@@ -151,7 +184,7 @@ Update `docs/PATTERNS.md` with patterns you learn and want to reuse.
 After Claude scaffolds your project:
 - Update `docs/SPEC.md` as the project evolves
 - Add project-specific entries to `.gitignore`
-- Create project-specific skills in `.claude/commands/`
+- Create project-specific commands in `.claude/commands/`
 
 ## Updating the Template
 
