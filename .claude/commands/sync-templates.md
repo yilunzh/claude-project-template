@@ -15,16 +15,21 @@ Compare against templates at:
    - Refined instructions that reduced errors
    - Better escalation/autonomous decision boundaries
 
-2. **Hooks**
+2. **Settings & Permissions** (`.claude/settings.json`)
+   - `allowedCommands` - Commands that should be auto-allowed in templates
+   - `permissions` - Permission patterns worth defaulting
+   - MCP server configurations that are broadly useful
+
+3. **Hooks**
    - New hooks that enforce useful behaviors
    - Improved hook logic (better detection, clearer messages)
    - Hooks that should be removed or simplified
 
-3. **Commands & Agents**
+4. **Commands & Agents**
    - New commands that are broadly applicable
    - Agent improvements that generalize
 
-4. **Process Documentation**
+5. **Process Documentation**
    - Ideation workflow refinements
    - Testing/verification patterns
 
