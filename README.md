@@ -186,24 +186,29 @@ After Claude scaffolds your project:
 - Add project-specific entries to `.gitignore`
 - Create project-specific commands in `.claude/commands/`
 
-## Updating the Template
+## Syncing Improvements from Projects
 
-When you improve the workflow in a project:
+As you work on projects, you may discover workflow improvements (new hooks, refined rules, better processes). To propagate these back to the templates:
 
-```bash
-# Copy improved files back to template
-cp ~/projects/my-project/.claude/hooks/new-hook.py \
-   ~/templates/claude-project-template/.claude/hooks/
+1. Open the project in Claude Code
+2. Ask: "analyze this project for template improvements" or "sync improvements to templates"
+3. Claude will:
+   - Compare your project's CLAUDE.md, hooks, commands, and agents against the templates
+   - Identify improvements worth propagating
+   - Create PRs to update both `claude-project-template` and `cursor-project-template`
 
-# Or diff and merge selectively
-diff ~/projects/my-project/CLAUDE.md \
-     ~/templates/claude-project-template/CLAUDE.md
-```
+No manual logging required - Claude analyzes the diffs on demand.
 
-**Don't sync back:**
-- Project-specific BRIEF.md content
-- Project-specific docs/SPEC.md content
-- Project-specific commands
+**What gets synced:**
+- Workflow improvements in CLAUDE.md
+- New or improved hooks
+- New slash commands or agents
+- Process documentation updates
+
+**What stays project-specific:**
+- BRIEF.md content
+- docs/SPEC.md content
+- Project-specific commands tied to your tech stack
 
 ## MCP Servers
 
