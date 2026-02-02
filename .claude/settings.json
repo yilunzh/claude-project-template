@@ -11,9 +11,16 @@
       "Bash(git log:*)",
       "Bash(git stash:*)",
       "Bash(git reset:*)",
+      "Bash(git rm:*)",
       "Bash(gh pr create:*)",
       "Bash(gh pr merge:*)",
-      "Bash(gh pr checks:*)"
+      "Bash(gh pr checks:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(pip install -r:*)",
+      "Bash(lsof -i:*)",
+      "Bash(touch .playwright-verified:*)"
     ]
   },
   "mcpServers": {
@@ -31,6 +38,11 @@
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-check.py\"",
             "timeout": 120000
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/implementation-plan-check.py\"",
+            "timeout": 10000
           }
         ]
       },
@@ -46,6 +58,16 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-format.py\"",
+            "timeout": 30000
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write",
         "hooks": [
@@ -112,6 +134,15 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/spec-update-check.py\"",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/implementation-plan-check.py\"",
             "timeout": 10000
           }
         ]
