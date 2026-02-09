@@ -17,6 +17,19 @@
 - **Status**: [Planning | In Development | MVP | Production]
 - **Last updated**: [Date]
 
+## Requirements
+
+### Functional
+
+- [Derived from BRIEF.md and ideation]
+
+### Non-Functional
+
+- **Security**: [Project-specific security standards]
+- **CI/Quality**: [Type checking, coverage threshold, security scanning]
+- **Performance**: [Latency targets, concurrency requirements]
+- **Observability**: [Logging, audit trails, monitoring]
+
 ## Architecture
 
 > Filled in once tech stack decisions are made.
@@ -124,6 +137,13 @@
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1 | [Date] | Initial specification |
+
+## Known Gaps
+
+> Issues identified during self-review that haven't been addressed yet.
+> Ordered by priority (high → low). Remove items as they're resolved.
+
+- [ ] [Gap description] — [severity: high/medium/low]
 
 ---
 
