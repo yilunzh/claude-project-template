@@ -78,7 +78,8 @@ claude-project-template/
 │   │   ├── completion-checklist.py
 │   │   ├── session-handoff.py
 │   │   ├── spec-update-check.py
-│   │   └── implementation-plan-check.py
+│   │   ├── implementation-plan-check.py
+│   │   └── memory-flush.py
 │   ├── commands/            # Custom slash commands
 │   │   ├── commit-push-pr.md
 │   │   ├── test-and-commit.md
@@ -87,8 +88,29 @@ claude-project-template/
 │   ├── agents/              # Custom subagents
 │   │   ├── test-first.md
 │   │   └── design-review.md
+│   ├── memory/              # Agent memory (personal, gitignored)
+│   │   ├── corrections/     # Behavioral corrections
+│   │   ├── preferences/     # User preferences
+│   │   ├── patterns/        # Observed workflow patterns
+│   │   └── reflections/     # Session reflections
 │   └── ideation/            # Structured ideation workflow
 │       └── IDEATION_PROCESS.md
+├── src/
+│   └── memory_mcp/          # Memory MCP server
+│       ├── __init__.py
+│       ├── server.py
+│       └── tools/
+│           ├── __init__.py
+│           ├── _registry.py
+│           ├── _paths.py
+│           ├── _git_helpers.py
+│           └── memory.py
+├── tests/                   # Memory MCP tests
+│   ├── conftest.py
+│   ├── test_registry.py
+│   ├── test_server.py
+│   └── test_memory.py
+├── pyproject.toml           # Python project config (memory MCP)
 ├── CLAUDE.md                # Development workflow
 ├── BRIEF.md                 # Project description (you edit this)
 ├── docs/
@@ -100,7 +122,7 @@ claude-project-template/
 
 ## Hooks
 
-The template includes 11 hooks that enforce the development workflow:
+The template includes 12 hooks that enforce the development workflow:
 
 | Hook | Type | Purpose |
 |------|------|---------|
@@ -115,6 +137,7 @@ The template includes 11 hooks that enforce the development workflow:
 | `session-handoff.py` | Blocking | Detects incomplete work, requires handoff |
 | `spec-update-check.py` | Stop | Triggers SPEC.md updates on key phrases |
 | `implementation-plan-check.py` | Advisory | Reminds to update implementation plans |
+| `memory-flush.py` | Advisory | Reminds to capture session learnings before ending |
 
 ### Language Detection
 
@@ -212,9 +235,44 @@ No manual logging required - Claude analyzes on demand and you decide what to ad
 - docs/SPEC.md content
 - Tech-stack-specific commands
 
+## Agent Memory System
+
+The template includes a self-improving agent memory system that captures behavioral learnings across sessions.
+
+### How It Works
+
+1. **Capture** -- When the user corrects the agent or states preferences, learnings are saved to `.claude/memory/` as YAML files
+2. **Load** -- At session start or phase transitions, relevant memories are loaded and scored against the current context
+3. **Reinforce** -- When the same correction recurs, the memory is reinforced. After 3+ reinforcements, it becomes a "pattern candidate"
+4. **Promote** -- Pattern candidates can be promoted to commands/agents through a review pipeline
+5. **Expire** -- Unused memories decay after 60 days and are deleted after 90 days
+
+### Memory Types
+
+| Type | Purpose |
+|------|---------|
+| Correction | "Don't do X, do Y instead" |
+| Preference | "I prefer bullet points over paragraphs" |
+| Pattern | "When doing X, always check Y first" |
+| Reflection | End-of-session retros (what went well, what to improve) |
+
+### Setup
+
+```bash
+pip install -e ".[dev]"
+```
+
+The memory MCP server is configured in `.claude/settings.json` and starts automatically.
+
+### Running Tests
+
+```bash
+PYTHONPATH=src pytest -v
+```
+
 ## MCP Servers
 
-The template configures Playwright MCP for visual verification:
+The template configures two MCP servers:
 
 ```json
 {
@@ -222,12 +280,18 @@ The template configures Playwright MCP for visual verification:
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "memory": {
+      "command": "python3",
+      "args": ["-m", "memory_mcp.server"],
+      "env": { "PYTHONPATH": "src" }
     }
   }
 }
 ```
 
-Use Playwright to screenshot and verify UI changes.
+- **Playwright** -- Screenshot and verify UI changes
+- **Memory** -- Self-improving agent memory system (capture, load, reinforce, review)
 
 ## License
 

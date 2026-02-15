@@ -28,6 +28,11 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "memory": {
+      "command": "python3",
+      "args": ["-m", "memory_mcp.server"],
+      "env": { "PYTHONPATH": "src" }
     }
   },
   "hooks": {
@@ -162,6 +167,15 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/self-review-reminder.py\"",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory-flush.py\"",
             "timeout": 10000
           }
         ]
