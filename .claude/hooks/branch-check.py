@@ -4,9 +4,9 @@
 Enforces feature branch workflow. Allows editing plan files and handoffs.
 """
 import json
+import os
 import subprocess
 import sys
-import os
 
 
 def get_current_branch():

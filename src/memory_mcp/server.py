@@ -13,7 +13,7 @@ import logging
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 # Import all tool modules to trigger registration
 from . import tools  # noqa: F401

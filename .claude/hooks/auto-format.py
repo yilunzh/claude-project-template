@@ -2,8 +2,8 @@
 """Auto-format Python files after Edit/Write. Advisory - doesn't block on failure."""
 import json
 import os
-import subprocess
 import shutil
+import subprocess
 
 
 def format_file(file_path):

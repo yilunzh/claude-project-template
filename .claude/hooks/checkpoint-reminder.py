@@ -6,8 +6,8 @@ Tracks edits via a simple counter file. Advisory only - doesn't block.
 import json
 import os
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 
 def get_counter_path():
@@ -136,7 +136,10 @@ def main():
     elif step_count > 5 and step_count % 3 == 0:
         return {
             "continue": True,
-            "message": f"Checkpoint overdue ({step_count} steps). Update .claude/session-context.md.",
+            "message": (
+                f"Checkpoint overdue ({step_count} steps). "
+                "Update .claude/session-context.md."
+            ),
         }
 
     return {"continue": True}

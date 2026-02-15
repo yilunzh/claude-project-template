@@ -9,7 +9,6 @@ import os
 import sys
 from pathlib import Path
 
-
 REQUIRED_SECTIONS = [
     ("current goal", ["current goal", "## current goal", "**current goal**", "# current goal"]),
     (
@@ -48,7 +47,11 @@ def reset_step_counter():
     try:
         with open(counter_path, "w") as f:
             json.dump(
-                {"count": 0, "last_checkpoint": "session-context.md", "reset_reason": "valid checkpoint written"},
+                {
+                    "count": 0,
+                    "last_checkpoint": "session-context.md",
+                    "reset_reason": "valid checkpoint written",
+                },
                 f,
             )
     except IOError:

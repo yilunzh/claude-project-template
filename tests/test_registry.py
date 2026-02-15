@@ -1,6 +1,6 @@
 """Tests for _registry.py -- tool registration, schema generation, retrieval."""
 
-from memory_mcp.tools._registry import get_registered_tools, register_tool
+from memory_mcp.tools._registry import get_registered_tools
 
 
 class TestRegisterTool:

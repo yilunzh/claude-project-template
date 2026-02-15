@@ -283,7 +283,10 @@ def main() -> None:
             print(f"Warning: Could not load terms from {terms_path}: {e}", file=sys.stderr)
             # Continue with empty terms — nothing will be auto-skipped by terms
     else:
-        print(f"Warning: Terms file not found: {terms_path}. Proceeding with no terms.", file=sys.stderr)
+        print(
+            f"Warning: Terms file not found: {terms_path}. Proceeding with no terms.",
+            file=sys.stderr,
+        )
 
     # Classify
     results = classify_all(candidates, terms)

@@ -16,17 +16,16 @@ from typing import Optional
 
 import yaml
 
+from ._git_helpers import get_current_branch, run_git
 from ._paths import (
-    get_memory_dir,
     get_memory_corrections_dir,
-    get_memory_preferences_dir,
+    get_memory_dir,
     get_memory_patterns_dir,
+    get_memory_preferences_dir,
     get_memory_reflections_dir,
     get_project_root,
-    get_claude_dir,
 )
 from ._registry import register_tool
-from ._git_helpers import run_git, get_current_branch
 
 logger = logging.getLogger("memory-mcp")
 
@@ -921,7 +920,10 @@ def learning_review(investigation: str = "") -> str:
             scope_label = "platform" if scope in ("universal", "platform") else "personal"
 
             parts.append(f"### Proposal {i}: {summary}\n\n")
-            parts.append(f"**Suggested target:** *(agent judgment -- choose the most appropriate command or agent file)*\n\n")
+            parts.append(
+                "**Suggested target:** *(agent judgment -- choose the "
+                "most appropriate command or agent file)*\n\n"
+            )
             parts.append(f"**Proposed addition:**\n> {detail}\n\n")
             parts.append(f"**Evidence:** {reinforced}x reinforced across {len(sessions)} sessions")
             if sessions:
@@ -1123,14 +1125,19 @@ def _apply_change_to_file(
             # Find the provenance comment for this memory_id
             marker = f"source: {memory_id}"
             if marker not in existing:
-                return False, f"Could not find provenance marker for `{memory_id}` in `{filepath.name}`"
+                return (
+                    False,
+                    f"Could not find provenance marker for "
+                    f"`{memory_id}` in `{filepath.name}`",
+                )
 
             # Find the promoted content block: everything from the content
             # to the provenance comment (inclusive)
             lines = existing.split("\n")
             new_lines = []
-            skip_until_provenance = False
-            content_lines = [l.strip() for l in content.strip().split("\n") if l.strip()]
+            content_lines = [
+                ln.strip() for ln in content.strip().split("\n") if ln.strip()
+            ]
             found = False
 
             i = 0
@@ -1193,7 +1200,10 @@ def _apply_change_to_file(
         },
         "target_file": {
             "type": "string",
-            "description": "Relative path to the file to modify (e.g., '.claude/commands/analysis-principles.md')",
+            "description": (
+                "Relative path to the file to modify "
+                "(e.g., '.claude/commands/analysis-principles.md')"
+            ),
         },
         "action": {
             "type": "string",
@@ -1201,7 +1211,10 @@ def _apply_change_to_file(
         },
         "content": {
             "type": "string",
-            "description": "Exact content to add (for append) or content to find and remove (for remove/rollback)",
+            "description": (
+                "Exact content to add (for append) or content "
+                "to find and remove (for remove/rollback)"
+            ),
         },
         "scope": {
             "type": "string",
@@ -1261,7 +1274,8 @@ def apply_proposal(
         )
     else:
         return _apply_platform(
-            memory_id, full_path, target_file, action, content, reinforced, filepath, entry, project_root
+            memory_id, full_path, target_file, action,
+            content, reinforced, filepath, entry, project_root,
         )
 
 
@@ -1394,7 +1408,8 @@ def _apply_platform(
                 logger.warning(f"Failed to update memory status: {e}")
 
         return (
-            f"Branch `{branch_name}` created with {'promotion' if action == 'append' else 'rollback'}. "
+            f"Branch `{branch_name}` created with "
+            f"{'promotion' if action == 'append' else 'rollback'}. "
             f"{message}. Push and create PR when ready."
         )
 
@@ -1450,7 +1465,12 @@ def _run_maintenance(all_entries: list[tuple[Path, dict]]) -> dict:
             entry["status"] = "decayed"
             try:
                 with open(filepath, "w") as f:
-                    yaml.dump(entry, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+                    yaml.dump(
+                        entry, f,
+                        default_flow_style=False,
+                        sort_keys=False,
+                        allow_unicode=True,
+                    )
                 summary["decayed"] += 1
             except Exception as e:
                 logger.warning(f"Failed to decay memory {filepath}: {e}")
@@ -1596,11 +1616,23 @@ def memory_stats() -> str:
 
     parts.append("## Notable\n\n")
     if oldest_active:
-        parts.append(f"- **Oldest active:** `{oldest_active.get('id', '?')}` (since {oldest_active.get('first_seen', '?')})\n")
+        oa_id = oldest_active.get('id', '?')
+        oa_fs = oldest_active.get('first_seen', '?')
+        parts.append(
+            f"- **Oldest active:** `{oa_id}` (since {oa_fs})\n"
+        )
     if most_reinforced:
-        parts.append(f"- **Most reinforced:** `{most_reinforced.get('id', '?')}` ({most_reinforced.get('times_reinforced', 0)}x)\n")
+        mr_id = most_reinforced.get('id', '?')
+        mr_count = most_reinforced.get('times_reinforced', 0)
+        parts.append(
+            f"- **Most reinforced:** `{mr_id}` ({mr_count}x)\n"
+        )
     if most_recent_promoted:
-        parts.append(f"- **Recently promoted:** `{most_recent_promoted.get('id', '?')}` to `{most_recent_promoted.get('promoted_to', '?')}`\n")
+        mrp_id = most_recent_promoted.get('id', '?')
+        mrp_to = most_recent_promoted.get('promoted_to', '?')
+        parts.append(
+            f"- **Recently promoted:** `{mrp_id}` to `{mrp_to}`\n"
+        )
     parts.append("\n")
 
     if any(v > 0 for v in maintenance.values()):

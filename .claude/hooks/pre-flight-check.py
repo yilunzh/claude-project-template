@@ -34,7 +34,10 @@ def check_python(project_dir):
     ]
     venv_found = any(os.path.isdir(p) for p in venv_paths)
     if not venv_found:
-        issues.append("No virtual environment found (.venv/ or venv/). Create one with: python -m venv .venv")
+        issues.append(
+            "No virtual environment found (.venv/ or venv/). "
+            "Create one with: python -m venv .venv"
+        )
         return issues  # Can't check further without venv
 
     # Find the active venv
@@ -42,7 +45,10 @@ def check_python(project_dir):
     python_bin = os.path.join(venv_dir, "bin", "python")
 
     if not os.path.exists(python_bin):
-        issues.append(f"Virtual environment at {os.path.basename(venv_dir)}/ exists but has no python binary")
+        issues.append(
+            f"Virtual environment at {os.path.basename(venv_dir)}/ "
+            "exists but has no python binary"
+        )
         return issues
 
     # Check Python version against requires-python in pyproject.toml
@@ -62,10 +68,16 @@ def check_python(project_dir):
                     if result.returncode == 0:
                         version = result.stdout.strip().replace("Python ", "")
                         # Just inform, don't try to parse version constraints
-                        issues.append(
-                            f"Python version: {version} (requires-python: {required}). "
-                            "Verify compatibility if you see import errors."
-                        ) if ">=" not in required or version < required.replace(">=", "").strip() else None
+                        if (
+                            ">=" not in required
+                            or version < required.replace(">=", "").strip()
+                        ):
+                            issues.append(
+                                f"Python version: {version} "
+                                f"(requires-python: {required}). "
+                                "Verify compatibility if you "
+                                "see import errors."
+                            )
                     break
         except Exception:
             pass
@@ -83,7 +95,14 @@ def check_python(project_dir):
                 installed = result.stdout.lower()
                 with open(req_path) as f:
                     for line in f:
-                        pkg = line.strip().split("==")[0].split(">=")[0].split("~=")[0].strip().lower()
+                        pkg = (
+                            line.strip()
+                            .split("==")[0]
+                            .split(">=")[0]
+                            .split("~=")[0]
+                            .strip()
+                            .lower()
+                        )
                         if pkg and not pkg.startswith("#") and not pkg.startswith("-"):
                             if pkg.replace("-", "_") not in installed.replace("-", "_"):
                                 issues.append(
