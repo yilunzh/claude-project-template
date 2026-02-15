@@ -11,8 +11,8 @@ Blocks if 2+ signals detected, advisory warning if 1 signal.
 import json
 import os
 import subprocess
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 
 def get_uncommitted_changes():
@@ -143,7 +143,10 @@ def main():
     if len(signals) == 1:
         return {
             "continue": True,
-            "message": f"Note: {signals[0]}. Consider writing .claude/handoff.md if work is incomplete.",
+            "message": (
+                f"Note: {signals[0]}. Consider writing "
+                ".claude/handoff.md if work is incomplete."
+            ),
         }
 
     return {"continue": True}

@@ -4,10 +4,8 @@ Provides temp memory directories and monkeypatched paths so all tools
 operate on isolated test data.
 """
 
-from pathlib import Path
 
 import pytest
-import yaml
 
 
 @pytest.fixture

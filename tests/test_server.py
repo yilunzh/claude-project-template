@@ -1,13 +1,9 @@
 """Tests for server.py -- MCP server dispatch, tool building, error handling."""
 
 import asyncio
-from unittest.mock import patch
 
-import pytest
-
-from memory_mcp.server import _build_tools, call_tool, TOOLS
+from memory_mcp.server import TOOLS, _build_tools, call_tool
 from memory_mcp.tools._registry import get_registered_tools
-
 
 EXPECTED_TOOL_NAMES = {
     "capture_memory",

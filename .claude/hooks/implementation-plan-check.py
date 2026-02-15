@@ -94,7 +94,10 @@ def is_code_file(file_path):
     if file_path.endswith(".md") and "CLAUDE" not in file_path:
         return False
 
-    code_extensions = [".py", ".swift", ".ts", ".js", ".tsx", ".jsx", ".yaml", ".yml", ".json", ".html", ".css"]
+    code_extensions = [
+        ".py", ".swift", ".ts", ".js", ".tsx", ".jsx",
+        ".yaml", ".yml", ".json", ".html", ".css",
+    ]
     return any(file_path.endswith(ext) for ext in code_extensions)
 
 

@@ -17,7 +17,10 @@ try:
     import yaml
 except ImportError:
     print(
-        json.dumps({"status": "error", "message": "PyYAML is required. Install with: pip install pyyaml"}),
+        json.dumps({
+            "status": "error",
+            "message": "PyYAML is required. Install with: pip install pyyaml",
+        }),
         file=sys.stderr,
     )
     sys.exit(1)
@@ -48,7 +51,8 @@ DIR_PAIRS: list[tuple[str, str, str]] = [
 def parse_claude_md_sections(content: str) -> dict[str, str]:
     """Parse CLAUDE.md content into a mapping of section_name -> policy.
 
-    Returns a dict like {"Development Workflow": "template-managed", "Project Overview": "customizable"}.
+    Returns a dict like:
+        {"Development Workflow": "template-managed", "Project Overview": "customizable"}.
     Sections without an explicit marker get policy "unspecified".
     """
     policies: dict[str, str] = {}
@@ -192,9 +196,15 @@ def collect_file_candidates(project_dir: Path, template_ref: Path) -> list[dict]
         tmpl_files: set[str] = set()
 
         if proj_subdir.is_dir():
-            proj_files = {f.name for f in proj_subdir.iterdir() if f.is_file() and f.name.endswith(ext)}
+            proj_files = {
+                f.name for f in proj_subdir.iterdir()
+                if f.is_file() and f.name.endswith(ext)
+            }
         if tmpl_subdir.is_dir():
-            tmpl_files = {f.name for f in tmpl_subdir.iterdir() if f.is_file() and f.name.endswith(ext)}
+            tmpl_files = {
+                f.name for f in tmpl_subdir.iterdir()
+                if f.is_file() and f.name.endswith(ext)
+            }
 
         all_files = sorted(proj_files | tmpl_files)
         for filename in all_files:
@@ -264,7 +274,10 @@ def collect_memory_candidates(project_dir: Path) -> list[dict]:
 def main() -> int:
     """Entry point. Parse args, collect candidates, print JSON to stdout."""
     parser = argparse.ArgumentParser(
-        description="Diff project files against template-ref and scan memory for promotion candidates."
+        description=(
+            "Diff project files against template-ref "
+            "and scan memory for promotion candidates."
+        )
     )
     parser.add_argument(
         "--project-dir",
@@ -283,14 +296,23 @@ def main() -> int:
 
     if not project_dir.is_dir():
         print(
-            json.dumps({"status": "error", "message": f"Project directory not found: {project_dir}"}),
+            json.dumps({
+                "status": "error",
+                "message": f"Project directory not found: {project_dir}",
+            }),
             file=sys.stderr,
         )
         return 1
 
     if not template_ref.is_dir():
         print(
-            json.dumps({"status": "error", "message": "Template-ref not found. Run /sync-templates --reverse first."}),
+            json.dumps({
+                "status": "error",
+                "message": (
+                    "Template-ref not found. "
+                    "Run /sync-templates --reverse first."
+                ),
+            }),
             file=sys.stderr,
         )
         return 1

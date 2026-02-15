@@ -1,4 +1,5 @@
-"""Tests for memory.py -- capture, load, scoring, filtering, reinforcement, dedup, review, reflection."""
+"""Tests for memory.py -- capture, load, scoring, filtering,
+reinforcement, dedup, review, reflection."""
 
 from datetime import date, timedelta
 from pathlib import Path
@@ -6,13 +7,13 @@ from pathlib import Path
 import yaml
 
 from memory_mcp.tools.memory import (
-    capture_memory,
-    load_relevant_memories,
-    reinforce_memory,
-    learning_review,
-    capture_reflection,
     apply_proposal,
+    capture_memory,
+    capture_reflection,
+    learning_review,
+    load_relevant_memories,
     memory_stats,
+    reinforce_memory,
     validate_memory_entry,
 )
 
@@ -772,7 +773,10 @@ class TestApplyProposal:
             yaml.dump(defaults, f, default_flow_style=False, sort_keys=False)
         return filepath
 
-    def _create_command_file(self, tmp_memory, name="test-rule.md", content="# Test Rule\n\nExisting content.\n"):
+    def _create_command_file(
+        self, tmp_memory, name="test-rule.md",
+        content="# Test Rule\n\nExisting content.\n",
+    ):
         """Create a command file for testing."""
         commands_dir = tmp_memory / ".claude" / "commands"
         commands_dir.mkdir(parents=True, exist_ok=True)
@@ -818,7 +822,7 @@ class TestApplyProposal:
         )
 
         content = (tmp_memory / ".claude" / "commands" / "test-rule.md").read_text()
-        assert f"source: correction-voided" in content
+        assert "source: correction-voided" in content
         assert "5x reinforced" in content
         assert date.today().isoformat() in content
 
@@ -872,6 +876,7 @@ class TestApplyProposal:
 
     def test_apply_platform_creates_branch(self, tmp_memory_git, monkeypatch):
         import subprocess
+
         import memory_mcp.tools.memory as memory_mod
         monkeypatch.setattr(memory_mod, "get_project_root", lambda: tmp_memory_git)
 
@@ -896,6 +901,7 @@ class TestApplyProposal:
 
     def test_apply_platform_commits(self, tmp_memory_git, monkeypatch):
         import subprocess
+
         import memory_mcp.tools.memory as memory_mod
         monkeypatch.setattr(memory_mod, "get_project_root", lambda: tmp_memory_git)
 
@@ -924,6 +930,7 @@ class TestApplyProposal:
 
     def test_apply_platform_returns_to_original(self, tmp_memory_git, monkeypatch):
         import subprocess
+
         import memory_mcp.tools.memory as memory_mod
         monkeypatch.setattr(memory_mod, "get_project_root", lambda: tmp_memory_git)
 
@@ -1071,7 +1078,9 @@ class TestRollback:
         command_file.write_text(
             "# Test Rule\n\nExisting content.\n\n"
             "Always filter status fields.\n\n"
-            f"<!-- Memory-promoted: {today}, source: correction-rollback-test, evidence: 3x reinforced -->\n"
+            f"<!-- Memory-promoted: {today}, source: "
+            f"correction-rollback-test, "
+            f"evidence: 3x reinforced -->\n"
         )
 
         # Create the promoted memory
@@ -1171,7 +1180,9 @@ class TestRollbackEdgeCases:
         # Marker exists but the content we're looking for isn't in the file
         command_file.write_text(
             "# Test Rule\n\nDifferent promoted text.\n\n"
-            f"<!-- Memory-promoted: {today}, source: correction-wrong-content, evidence: 3x reinforced -->\n"
+            f"<!-- Memory-promoted: {today}, source: "
+            f"correction-wrong-content, "
+            f"evidence: 3x reinforced -->\n"
         )
 
         self._create_memory(
@@ -1203,7 +1214,9 @@ class TestRollbackEdgeCases:
             "Line one of promoted content.\n"
             "Line two of promoted content.\n"
             "Line three of promoted content.\n\n"
-            f"<!-- Memory-promoted: {today}, source: correction-multiline, evidence: 3x reinforced -->\n"
+            f"<!-- Memory-promoted: {today}, source: "
+            f"correction-multiline, "
+            f"evidence: 3x reinforced -->\n"
         )
 
         self._create_memory(
@@ -1215,7 +1228,12 @@ class TestRollbackEdgeCases:
             memory_id="correction-multiline",
             target_file=".claude/commands/test-rule.md",
             action="remove",
-            content="## Multi-Line Promotion\n\nLine one of promoted content.\nLine two of promoted content.\nLine three of promoted content.",
+            content=(
+                "## Multi-Line Promotion\n\n"
+                "Line one of promoted content.\n"
+                "Line two of promoted content.\n"
+                "Line three of promoted content."
+            ),
             scope="personal",
         )
         assert "Rolled back" in result or "Removed" in result
@@ -1267,9 +1285,18 @@ class TestMemoryStats:
 
     def test_stats_counts(self, tmp_memory):
         self._create_memory(tmp_memory, id="correction-a", status="active")
-        self._create_memory(tmp_memory, id="correction-b", status="pattern_candidate", times_reinforced=3)
-        self._create_memory(tmp_memory, id="preference-c", type="preference", status="active")
-        self._create_memory(tmp_memory, id="correction-d", status="promoted", promoted_to="some-rule.md")
+        self._create_memory(
+            tmp_memory, id="correction-b",
+            status="pattern_candidate", times_reinforced=3,
+        )
+        self._create_memory(
+            tmp_memory, id="preference-c",
+            type="preference", status="active",
+        )
+        self._create_memory(
+            tmp_memory, id="correction-d",
+            status="promoted", promoted_to="some-rule.md",
+        )
 
         result = memory_stats()
         assert "Memory System Health" in result
@@ -1500,10 +1527,16 @@ class TestE2EExpiration:
         f_today = self._create_memory(tmp_memory, id="correction-today", last_seen=today)
         f_30d = self._create_memory(tmp_memory, id="correction-30d", last_seen=d30, first_seen=d30)
         f_65d = self._create_memory(tmp_memory, id="correction-65d", last_seen=d65, first_seen=d65)
-        f_95d = self._create_memory(tmp_memory, id="correction-95d", last_seen=d95, first_seen=d95, status="decayed")
-        f_promoted = self._create_memory(tmp_memory, id="correction-promoted", last_seen=d95, first_seen=d95, status="promoted")
+        f_95d = self._create_memory(
+            tmp_memory, id="correction-95d",
+            last_seen=d95, first_seen=d95, status="decayed",
+        )
+        f_promoted = self._create_memory(
+            tmp_memory, id="correction-promoted",
+            last_seen=d95, first_seen=d95, status="promoted",
+        )
 
-        result = memory_stats()
+        memory_stats()
 
         # Today and 30d: still active
         assert f_today.exists()
@@ -1560,8 +1593,12 @@ class TestE2EContradictionAndRollback:
             assert yaml.safe_load(f)["status"] == "promoted"
 
         # 2. Capture contradiction
-        r = capture_memory(type="correction", summary="Never filter status billing transactions for audit",
-                          scope="universal", tables="billing_transactions", investigation="inv-4")
+        r = capture_memory(
+            type="correction",
+            summary="Never filter status billing transactions for audit",
+            scope="universal", tables="billing_transactions",
+            investigation="inv-4",
+        )
         assert "superseded" in r.lower() or "Captured" in r
 
         # 3. Learning review should flag rollback

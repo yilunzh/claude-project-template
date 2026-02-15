@@ -8,11 +8,10 @@ Triggers on:
 - All todos are marked complete (feature implementation finished)
 """
 import json
+import os
 import subprocess
 import sys
-import os
 from glob import glob
-
 
 # Trigger phrases that activate the hook
 TRIGGER_PHRASES = [

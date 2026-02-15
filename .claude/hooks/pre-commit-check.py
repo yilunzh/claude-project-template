@@ -3,11 +3,10 @@
 
 Language-agnostic: Auto-detects test runner and linter based on project files.
 """
-import re
-import subprocess
 import json
 import os
-from pathlib import Path
+import re
+import subprocess
 
 
 def get_current_branch():
@@ -71,7 +70,8 @@ def detect_test_runner():
 def detect_linter():
     """Detect linter based on project files."""
     # Node.js linters
-    if os.path.exists(".eslintrc.js") or os.path.exists(".eslintrc.json") or os.path.exists("eslint.config.js"):
+    eslint_configs = [".eslintrc.js", ".eslintrc.json", "eslint.config.js"]
+    if any(os.path.exists(c) for c in eslint_configs):
         return ["npx", "eslint", "."]
 
     # Python linters
