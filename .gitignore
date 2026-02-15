@@ -83,6 +83,7 @@ Thumbs.db
 .playwright-verified
 .claude/template-ref/
 .claude/harvest-queue.yaml
+.claude/.arch-review-state
 
 # Ideation project folders (template-internal design docs)
 # IDEATION_PROCESS.md is tracked; project-specific ideation is local-only
