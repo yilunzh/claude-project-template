@@ -194,6 +194,18 @@ Custom hooks are in `.claude/hooks/`:
 
 Custom slash commands are in `.claude/commands/`. See `example.md` for the format.
 
+### Quick Reference: Commands
+
+| Command | When to use | What it does |
+|---------|-------------|--------------|
+| `/test-and-commit` | Ready to commit | Runs tests, commits only if passing |
+| `/commit-push-pr` | Ready for PR | Commits, pushes, creates PR with summary |
+| `/self-review` | After significant work (5+ files) | Structured review checklist before claiming done |
+| `/reflect` | End of session | Captures corrections, preferences, patterns to memory |
+| `/harvest-learnings` | When harvest candidates exist | Extracts and classifies learnings for cross-project promotion |
+| `/web-verify` | After UI changes | Playwright verification of web routes |
+| `/sync-templates` | Discovered workflow improvements | Analyzes project for improvements to propagate to templates |
+
 ## Agent Memory <!-- template-managed -->
 
 The memory MCP server (`src/memory_mcp/`) provides self-improving behavioral memory across sessions.

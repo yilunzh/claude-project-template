@@ -67,7 +67,7 @@ Claude will:
 claude-project-template/
 ├── .claude/
 │   ├── settings.json        # Hooks + MCP server configuration
-│   ├── hooks/               # Quality enforcement scripts
+│   ├── hooks/               # Quality enforcement scripts (15 hooks)
 │   │   ├── pre-commit-check.py
 │   │   ├── branch-check.py
 │   │   ├── uncommitted-changes-check.py
@@ -79,12 +79,24 @@ claude-project-template/
 │   │   ├── session-handoff.py
 │   │   ├── spec-update-check.py
 │   │   ├── implementation-plan-check.py
-│   │   └── memory-flush.py
+│   │   ├── memory-flush.py
+│   │   ├── self-review-reminder.py
+│   │   ├── pre-flight-check.py
+│   │   └── harvest-check.py
 │   ├── commands/            # Custom slash commands
 │   │   ├── commit-push-pr.md
 │   │   ├── test-and-commit.md
 │   │   ├── web-verify.md
+│   │   ├── self-review.md
+│   │   ├── reflect.md
+│   │   ├── harvest-learnings.md
+│   │   ├── sync-templates.md
 │   │   └── example.md
+│   ├── scripts/
+│   │   └── harvester/       # Learning harvest pipeline
+│   │       ├── extract_terms.py
+│   │       ├── diff_candidates.py
+│   │       └── classify.py
 │   ├── agents/              # Custom subagents
 │   │   ├── test-first.md
 │   │   └── design-review.md
@@ -95,6 +107,11 @@ claude-project-template/
 │   │   └── reflections/     # Session reflections
 │   └── ideation/            # Structured ideation workflow
 │       └── IDEATION_PROCESS.md
+├── .github/
+│   └── workflows/           # CI and automated review
+│       ├── ci.yml
+│       ├── claude-review.yml
+│       └── security-review.yml
 ├── src/
 │   └── memory_mcp/          # Memory MCP server
 │       ├── __init__.py
@@ -122,7 +139,7 @@ claude-project-template/
 
 ## Hooks
 
-The template includes 12 hooks that enforce the development workflow:
+The template includes 15 hooks that enforce the development workflow:
 
 | Hook | Type | Purpose |
 |------|------|---------|
@@ -138,6 +155,9 @@ The template includes 12 hooks that enforce the development workflow:
 | `spec-update-check.py` | Stop | Triggers SPEC.md updates on key phrases |
 | `implementation-plan-check.py` | Advisory | Reminds to update implementation plans |
 | `memory-flush.py` | Advisory | Reminds to capture session learnings before ending |
+| `self-review-reminder.py` | Advisory | Reminds to run `/self-review` after large changes (5+ files) |
+| `pre-flight-check.py` | Advisory | Validates environment setup on first prompt |
+| `harvest-check.py` | Advisory | Surfaces learning harvest candidates at session end |
 
 ### Language Detection
 
@@ -156,6 +176,55 @@ Hooks automatically detect your project type:
 4. **IMPLEMENT** - Make incremental changes, checkpoint every 3-5 edits
 5. **VERIFY** - Run tests, use Playwright for UI changes
 
+## GitHub Actions & CI
+
+Three workflows run automatically on pull requests:
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `ci.yml` | PR + push to main | Runs `ruff check .` + `pytest`. Required status check for merging. |
+| `claude-review.yml` | PR (code files only) | Claude-powered code review — quality, bugs, best practices. Posts inline comments. |
+| `security-review.yml` | PR (code files only) | Claude-powered security review — OWASP Top 10, secrets, injection. Posts inline comments. |
+
+**Path filters**: The review workflows only trigger when code files change (`.py`, `.js`, `.ts`, `.yml`, `.yaml`, `.toml`, `.cfg`, `.json`, `.html`, `.css`). Docs-only PRs skip review.
+
+**Required setup**: Add `ANTHROPIC_API_KEY` to GitHub repo settings (Settings → Secrets and variables → Actions) for the Claude review workflows.
+
+**Branch protection**: Configure a ruleset on `main` requiring the `test` status check to pass before merging. This ensures CI + review complete before any merge.
+
+## Session Lifecycle
+
+How the hooks, commands, and workflows fit together across a typical session:
+
+```
+Session Start
+  ├─ pre-flight-check        → validates venv, dependencies
+  └─ uncommitted-changes-check → warns about stale changes
+
+During Work
+  ├─ branch-check            → blocks edits on main
+  ├─ post-edit-verify        → reminds to test after edits
+  ├─ checkpoint-reminder     → nudges every 3-5 edits
+  └─ checkpoint-validator    → validates checkpoint sections
+
+Before Commit
+  ├─ /test-and-commit        → run tests, commit if passing
+  └─ /commit-push-pr         → commit, push, create PR
+
+Pull Request
+  ├─ ci.yml                  → lint + tests (required check)
+  ├─ claude-review.yml       → code quality review
+  └─ security-review.yml     → security review
+
+Session End
+  ├─ /reflect                → capture learnings to memory
+  ├─ /harvest-learnings      → extract candidates for promotion (if any)
+  ├─ memory-flush            → reminds to capture uncaptured learnings
+  ├─ harvest-check           → surfaces harvest candidates
+  ├─ completion-checklist    → ensures tests were run
+  └─ session-handoff         → requires handoff if work is incomplete
+```
+
 ## Customization
 
 ### Built-in Commands
@@ -167,6 +236,9 @@ The template includes ready-to-use slash commands:
 | `/commit-push-pr` | Complete workflow from staged changes to PR creation |
 | `/test-and-commit` | Run tests first, only commit if passing |
 | `/web-verify` | Playwright verification for web routes |
+| `/self-review` | Structured self-review checklist for significant work |
+| `/reflect` | Capture session learnings (corrections, preferences, patterns) to memory |
+| `/harvest-learnings` | Extract and classify learning candidates for cross-project promotion |
 | `/sync-templates` | Analyze project for improvements to propagate to templates |
 
 ### Adding Custom Commands
