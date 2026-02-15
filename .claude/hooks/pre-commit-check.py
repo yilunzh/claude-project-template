@@ -3,6 +3,7 @@
 
 Language-agnostic: Auto-detects test runner and linter based on project files.
 """
+import re
 import subprocess
 import json
 import os
@@ -106,8 +107,47 @@ def run_command(cmd, name):
     }
 
 
+def check_secrets():
+    """Scan staged files for hardcoded secrets."""
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"], capture_output=True, text=True
+    )
+    staged_files = [f for f in result.stdout.strip().split("\n") if f]
+
+    secret_patterns = [
+        (r"AKIA[A-Z0-9]{16}", "AWS Access Key"),
+        (r"gh[pors]_[A-Za-z0-9]{36}", "GitHub Token"),
+    ]
+
+    findings = []
+    for filepath in staged_files:
+        if not os.path.exists(filepath):
+            continue
+        try:
+            with open(filepath) as f:
+                content = f.read()
+        except (IOError, UnicodeDecodeError):
+            continue
+
+        for pattern, label in secret_patterns:
+            if re.search(pattern, content):
+                findings.append(f"{filepath}: potential {label} detected")
+
+    return findings
+
+
 def main():
     checks = []
+
+    # Check for secrets in staged files
+    secret_findings = check_secrets()
+    if secret_findings:
+        return {
+            "decision": "block",
+            "reason": "Potential secrets detected in staged files:\n"
+            + "\n".join(f"  - {f}" for f in secret_findings)
+            + "\n\nRemove secrets before committing.",
+        }
 
     # Check branch policy: block ALL commits to main
     branch = get_current_branch()

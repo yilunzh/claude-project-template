@@ -30,13 +30,16 @@ Auto-detected from this command's location:
 
 Analyze a project to find improvements worth adding to the templates.
 
-1. **Fetch project files**
-   - Local path: Read files directly
-   - GitHub repo: Use `gh api` to fetch content
+1. **Inventory both sides**
+   - **Template**: Recursively list ALL files under `.claude/`, `docs/`, and root config files (CLAUDE.md, BRIEF.md, etc.) in the template repo
+   - **Project**: Same recursive listing for the target project (local path: use Glob; GitHub repo: use `gh api` to list trees recursively)
+   - Compare file lists to identify files that exist in one side but not the other
 
-2. **Compare against templates**
-   - Read template files from auto-detected locations
-   - Identify differences in configuration, hooks, commands, etc.
+2. **Fetch and compare contents**
+   - For files present in both: diff contents to find meaningful differences
+   - For files only in the project: evaluate as potential template additions
+   - For files only in the template: note as already covered (no action needed)
+   - **IMPORTANT**: Read the corresponding template files BEFORE claiming something is a "potential addition" — it may already exist in the template under the same or similar path
 
 3. **Evaluate each difference**
    - Is it generalizable to most projects?
@@ -52,15 +55,21 @@ Analyze a project to find improvements worth adding to the templates.
 
 Pull the latest template improvements into a project.
 
-1. **Compare templates against project**
-   - Identify template features the project doesn't have
-   - Check for outdated patterns in the project
+1. **Inventory both sides**
+   - **Template**: Recursively list ALL files under `.claude/`, `docs/`, and root config files (CLAUDE.md, BRIEF.md, etc.) in the template repo
+   - **Project**: Same recursive listing for the target project (local path: use Glob; GitHub repo: use `gh api` to list trees recursively)
+   - Compare file lists to identify files that exist in one side but not the other
 
-2. **Evaluate relevance**
+2. **Fetch and compare contents**
+   - For files present in both: diff contents to find meaningful differences
+   - For files only in the template: evaluate as candidates to add to the project
+   - For files only in the project: note as project-specific (no action needed)
+
+3. **Evaluate relevance**
    - Which template features would benefit this project?
    - Are there project-specific reasons to skip certain features?
 
-3. **Present recommendations**
+4. **Present recommendations**
    - Show what would be added/updated
    - Ask which to apply to the project
 

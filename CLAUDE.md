@@ -153,10 +153,75 @@ Custom hooks are in `.claude/hooks/`:
 - `completion-checklist.py` - **Blocking**: Ensures tests were run before session ends
 - `session-handoff.py` - **Blocking**: Detects incomplete work, requires handoff
 - `spec-update-check.py` - Triggers SPEC.md updates on key phrases
+- `memory-flush.py` - **Advisory**: Reminds to capture session learnings before ending
 
 ## Custom Skills
 
 Custom slash commands are in `.claude/commands/`. See `example.md` for the format.
+
+## Agent Memory
+
+The memory MCP server (`src/memory_mcp/`) provides self-improving behavioral memory across sessions.
+
+### When to Capture
+
+- When the user explicitly corrects you, call `capture_memory(type="correction", signal="explicit_correction", ...)`
+- When the user states a preference about output format, naming, or workflow, call `capture_memory(type="preference", signal="explicit_preference", ...)`
+- Set `scope` carefully: `universal` for always-applicable, `domain` for domain-specific, `investigation` for session-only, `one_time` for context-specific corrections
+
+### When to Load
+
+- At the start of a new task or investigation, call `load_relevant_memories(domain=<detected>)`
+- When first working with a new table/data source, call `load_relevant_memories(tables=<table_name>)`
+- When entering a new project phase, call `load_relevant_memories(phase=<phase_name>)`
+
+### How to Use Loaded Memories
+
+- Treat memories as supplementary context, not authoritative rules
+- If a memory contradicts a rule, follow the rule
+- When a memory influences your behavior, cite it inline: `[Memory: <memory-id>, <count>x]`
+
+### Reflect Command
+
+When the user says "reflect", "session review", or "capture learnings":
+
+1. Review the entire conversation for uncaptured corrections/preferences/patterns
+2. Call `capture_reflection()` with what went well and what could improve
+3. Call `learning_review()` to generate the session summary and proposals
+4. Present the review; wait for user response on proposals
+5. If user approves a proposal, call `apply_proposal()` with approved details
+
+### Memory Hierarchy
+
+1. CLAUDE.md rules (highest authority) -- always follow
+2. Memory corrections -- personal behavioral guidance
+3. Memory preferences -- style/format, not analysis decisions
+
+## Post-Implementation Quality Check
+
+After completing a feature (before claiming "done"), verify:
+
+1. **Doc alignment** -- For each changed file, check if CLAUDE.md, README.md, or commands reference it. Fix stale descriptions.
+2. **Dead code** -- For each function in changed files, verify it's imported/called somewhere. Delete unused functions.
+3. **Import consistency** -- Check no files import from deleted or renamed modules. Update stale imports.
+4. **Gitignore compliance** -- Check no files that should be gitignored are tracked (`git ls-files .env .claude/memory/corrections/`).
+
+Present findings as a checklist before proceeding.
+
+## Pre-PR Self-Review
+
+Before creating a PR or pushing for review:
+
+1. **Run full test suite** -- all tests must pass
+2. **Diff review** (`git diff main...HEAD`) -- check every changed file for:
+   - **Security**: path traversal, input validation, hardcoded secrets, PII
+   - **Defensive coding**: error handling, null safety, timeouts on subprocess calls
+   - **Consistency**: naming conventions, docstrings, import style
+   - **Fragility**: shell safety, path construction, magic numbers
+3. **Cross-reference** -- new functions have tests, deleted functions have no remaining imports/references
+4. **Present findings** -- list CRITICAL/MODERATE/MINOR issues before creating PR
+
+Skip for typo-only or docs-only changes.
 
 ## SPEC.md Updates
 

@@ -82,6 +82,12 @@ Thumbs.db
 .claude/.step-counter
 .playwright-verified
 
+# Agent Memory (personal, gitignored)
+.claude/memory/corrections/*.yaml
+.claude/memory/preferences/*.yaml
+.claude/memory/patterns/*.yaml
+.claude/memory/reflections/*.md
+
 # Logs
 logs/
 *.log

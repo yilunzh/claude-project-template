@@ -28,6 +28,11 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "memory": {
+      "command": "python3",
+      "args": ["-m", "memory_mcp.server"],
+      "env": { "PYTHONPATH": "src" }
     }
   },
   "hooks": {
@@ -145,6 +150,15 @@
             "type": "command",
             "command": "CLAUDE_HOOK_TYPE=Stop python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/implementation-plan-check.py\"",
             "timeout": 5000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/memory-flush.py\"",
+            "timeout": 10000
           }
         ]
       }
