@@ -81,6 +81,12 @@ Thumbs.db
 .claude/handoff.md
 .claude/.step-counter
 .playwright-verified
+.claude/template-ref/
+.claude/harvest-queue.yaml
+
+# Ideation project folders (template-internal design docs)
+# IDEATION_PROCESS.md is tracked; project-specific ideation is local-only
+.claude/ideation/*/
 
 # Agent Memory (personal, gitignored)
 .claude/memory/corrections/*.yaml

@@ -179,6 +179,15 @@
             "timeout": 10000
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/harvest-check.py\"",
+            "timeout": 5000
+          }
+        ]
       }
     ]
   }
