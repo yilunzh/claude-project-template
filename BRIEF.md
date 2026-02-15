@@ -56,3 +56,4 @@
 ---
 
 *After completing this brief, start Claude Code and say: "I'm starting a new project. Read BRIEF.md and help me plan the implementation."*
+
