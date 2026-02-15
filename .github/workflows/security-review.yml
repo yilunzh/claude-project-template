@@ -20,8 +20,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          review_comment_prefix: "**Security Review**"
-          direct_prompt: |
+          prompt: |
             Perform a security-focused review of this PR. Check for:
             - OWASP Top 10 vulnerabilities
             - Hardcoded secrets or credentials
