@@ -114,6 +114,15 @@
             "timeout": 10000
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-flight-check.py\"",
+            "timeout": 15000
+          }
+        ]
       }
     ],
     "Stop": [
@@ -150,6 +159,15 @@
             "type": "command",
             "command": "CLAUDE_HOOK_TYPE=Stop python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/implementation-plan-check.py\"",
             "timeout": 5000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/self-review-reminder.py\"",
+            "timeout": 10000
           }
         ]
       },
