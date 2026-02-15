@@ -67,11 +67,22 @@ def check_python(project_dir):
                     )
                     if result.returncode == 0:
                         version = result.stdout.strip().replace("Python ", "")
-                        # Just inform, don't try to parse version constraints
-                        if (
-                            ">=" not in required
-                            or version < required.replace(">=", "").strip()
-                        ):
+                        # Compare version tuples for correct numeric ordering
+                        if ">=" in required:
+                            req_ver = required.replace(">=", "").strip()
+                            try:
+                                ver_tuple = tuple(int(x) for x in version.split(".")[:3])
+                                req_tuple = tuple(int(x) for x in req_ver.split(".")[:3])
+                                if ver_tuple < req_tuple:
+                                    issues.append(
+                                        f"Python version: {version} "
+                                        f"(requires-python: {required}). "
+                                        "Verify compatibility if you "
+                                        "see import errors."
+                                    )
+                            except ValueError:
+                                pass
+                        else:
                             issues.append(
                                 f"Python version: {version} "
                                 f"(requires-python: {required}). "

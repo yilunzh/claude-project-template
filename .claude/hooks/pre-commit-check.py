@@ -7,14 +7,10 @@ import json
 import os
 import re
 import subprocess
+import sys
 
-
-def get_current_branch():
-    """Get the current git branch name."""
-    result = subprocess.run(
-        ["git", "branch", "--show-current"], capture_output=True, text=True
-    )
-    return result.stdout.strip()
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import get_current_branch
 
 
 def get_staged_file_count():
