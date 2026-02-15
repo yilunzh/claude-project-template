@@ -68,6 +68,8 @@ claude-project-template/
 ├── .claude/
 │   ├── settings.json        # Hooks + MCP server configuration
 │   ├── hooks/               # Quality enforcement scripts (15 hooks)
+│   │   ├── _lib/            # Shared hook utilities
+│   │   │   └── hook_utils.py
 │   │   ├── pre-commit-check.py
 │   │   ├── branch-check.py
 │   │   ├── uncommitted-changes-check.py
@@ -122,11 +124,14 @@ claude-project-template/
 │           ├── _paths.py
 │           ├── _git_helpers.py
 │           └── memory.py
-├── tests/                   # Memory MCP tests
+├── tests/                   # Test suite
 │   ├── conftest.py
 │   ├── test_registry.py
 │   ├── test_server.py
-│   └── test_memory.py
+│   ├── test_memory.py
+│   ├── test_hook_utils.py
+│   ├── test_completion_checklist.py
+│   └── test_harvester.py
 ├── pyproject.toml           # Python project config (memory MCP)
 ├── CLAUDE.md                # Development workflow
 ├── BRIEF.md                 # Project description (you edit this)

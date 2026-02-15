@@ -9,7 +9,9 @@ through the learning review -> approval -> apply_proposal pipeline.
 """
 
 import logging
+import os
 import re
+import tempfile
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
@@ -152,6 +154,25 @@ def validate_memory_entry(entry: dict) -> Optional[str]:
     return None
 
 
+def _atomic_write_yaml(path: Path, data: dict) -> None:
+    """Write YAML atomically using temp file + rename.
+
+    Prevents corruption from concurrent writes by writing to a
+    temporary file first, then atomically replacing the target.
+    """
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        os.replace(tmp_path, str(path))
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 # --- Tools ---
 
 
@@ -287,11 +308,7 @@ def capture_memory(
         dup_entry["status"] = "superseded"
         dup_entry["superseded_by"] = new_id
         try:
-            with open(dup_path, "w") as f:
-                yaml.dump(
-                    dup_entry, f,
-                    default_flow_style=False, sort_keys=False, allow_unicode=True,
-                )
+            _atomic_write_yaml(dup_path, dup_entry)
         except Exception as e:
             logger.warning(f"Failed to mark old memory as superseded: {e}")
         # Fall through to create the new entry
@@ -345,14 +362,7 @@ def capture_memory(
 
     # Write YAML
     try:
-        with open(filepath, "w") as f:
-            yaml.dump(
-                entry,
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
+        _atomic_write_yaml(filepath, entry)
 
         msg = (
             f"Captured **{type}** to memory: `{summary}` "
@@ -773,14 +783,7 @@ def reinforce_memory(memory_id: str, session: str = "") -> str:
 
     # Write back
     try:
-        with open(filepath, "w") as f:
-            yaml.dump(
-                entry,
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
+        _atomic_write_yaml(filepath, entry)
 
         count = entry["times_reinforced"]
         msg = f"Reinforced memory `{memory_id}` ({count}x)."
@@ -1306,11 +1309,7 @@ def _apply_personal(
             memory_entry["status"] = "reverted"
 
         try:
-            with open(memory_filepath, "w") as f:
-                yaml.dump(
-                    memory_entry, f,
-                    default_flow_style=False, sort_keys=False, allow_unicode=True,
-                )
+            _atomic_write_yaml(memory_filepath, memory_entry)
         except Exception as e:
             logger.warning(f"Failed to update memory status: {e}")
 
@@ -1399,11 +1398,7 @@ def _apply_platform(
                 memory_entry["status"] = "reverted"
 
             try:
-                with open(memory_filepath, "w") as f:
-                    yaml.dump(
-                        memory_entry, f,
-                        default_flow_style=False, sort_keys=False, allow_unicode=True,
-                    )
+                _atomic_write_yaml(memory_filepath, memory_entry)
             except Exception as e:
                 logger.warning(f"Failed to update memory status: {e}")
 
@@ -1464,13 +1459,7 @@ def _run_maintenance(all_entries: list[tuple[Path, dict]]) -> dict:
         if status == "active" and days_since > DECAY_DAYS:
             entry["status"] = "decayed"
             try:
-                with open(filepath, "w") as f:
-                    yaml.dump(
-                        entry, f,
-                        default_flow_style=False,
-                        sort_keys=False,
-                        allow_unicode=True,
-                    )
+                _atomic_write_yaml(filepath, entry)
                 summary["decayed"] += 1
             except Exception as e:
                 logger.warning(f"Failed to decay memory {filepath}: {e}")

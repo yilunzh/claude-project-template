@@ -6,14 +6,16 @@ Tracks edits via a simple counter file. Advisory only - doesn't block.
 import json
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import checkpoint_recent, get_project_dir, is_major_step, read_json_stdin
 
 
 def get_counter_path():
     """Get path to step counter file."""
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    return Path(project_dir) / ".claude" / ".step-counter"
+    return Path(get_project_dir()) / ".claude" / ".step-counter"
 
 
 def read_counter():
@@ -38,63 +40,14 @@ def write_counter(data):
         json.dump(data, f)
 
 
-def checkpoint_exists_and_recent():
-    """Check if session-context.md exists and was updated recently."""
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    checkpoint_path = Path(project_dir) / ".claude" / "session-context.md"
-
-    if not checkpoint_path.exists():
-        return False
-
-    mtime = datetime.fromtimestamp(checkpoint_path.stat().st_mtime)
-    # Consider "recent" if updated within last 10 minutes
-    return datetime.now() - mtime < timedelta(minutes=10)
-
-
-def is_major_step(tool_input):
-    """Determine if this edit constitutes a major step."""
-    file_path = tool_input.get("file_path", "")
-
-    # Skip test files, config files, and checkpoint files themselves
-    skip_patterns = [
-        "test_",
-        ".spec.",
-        ".claude/",
-        "requirements",
-        "package.json",
-        "package-lock.json",
-        ".env",
-        "session-context.md",
-        "handoff.md",
-        ".step-counter",
-        ".gitignore",
-        "pytest.ini",
-        "conftest.py",
-        "tsconfig.json",
-        "vite.config",
-        "jest.config",
-    ]
-
-    for pattern in skip_patterns:
-        if pattern in file_path:
-            return False
-
-    # Count edits to source files as major steps
-    major_extensions = [".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".go", ".rs"]
-    return any(file_path.endswith(ext) for ext in major_extensions)
-
-
 def main():
     # Read hook input
-    try:
-        input_data = json.load(sys.stdin)
-    except json.JSONDecodeError:
-        input_data = {}
-
+    input_data = read_json_stdin()
     tool_input = input_data.get("tool_input", {})
+    file_path = tool_input.get("file_path", "")
 
     # Only count major steps
-    if not is_major_step(tool_input):
+    if not is_major_step(file_path):
         return {"continue": True}
 
     # Read and increment counter
@@ -103,7 +56,7 @@ def main():
     counter["last_update"] = datetime.now().isoformat()
 
     # Check if checkpoint was recently written
-    if checkpoint_exists_and_recent():
+    if checkpoint_recent():
         # Reset counter after checkpoint
         counter["count"] = 0
         counter["last_checkpoint"] = datetime.now().isoformat()
