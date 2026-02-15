@@ -3,6 +3,17 @@ name: Security Review
 on:
   pull_request:
     types: [opened, synchronize]
+    paths:
+      - "**.py"
+      - "**.js"
+      - "**.ts"
+      - "**.yml"
+      - "**.yaml"
+      - "**.toml"
+      - "**.cfg"
+      - "**.json"
+      - "**.html"
+      - "**.css"
 
 jobs:
   security:
