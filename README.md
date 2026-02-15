@@ -23,16 +23,23 @@ This template provides:
 
 ### 1. Create Your Project
 
-```bash
-# Clone template to new project directory
-cp -r /path/to/claude-project-template ~/projects/my-new-project
-cd ~/projects/my-new-project
+Open Claude Code in the template repo and use `/init-project`:
 
-# Initialize git (template doesn't include .git)
-git init
-git add .
-git commit -m "Initial commit from claude-project-template"
+```bash
+cd /path/to/claude-project-template
+claude
+
+# In Claude Code:
+# /init-project ~/projects/my-new-project
 ```
+
+This will:
+- Copy all template files (hooks, commands, agents, CI workflows)
+- Bootstrap `.claude/template-ref/` for future sync (merge base)
+- Set up Python venv and install the memory MCP server
+- Initialize git with an initial commit
+
+To pull template updates later, run `/sync-templates --reverse` from within your project.
 
 ### 2. Describe Your Project
 
@@ -47,7 +54,7 @@ Edit `BRIEF.md` with a non-technical description of what you're building:
 ### 3. Start Building
 
 ```bash
-# Start Claude Code
+cd ~/projects/my-new-project
 claude
 
 # First message:
@@ -86,6 +93,7 @@ claude-project-template/
 │   │   ├── pre-flight-check.py
 │   │   └── harvest-check.py
 │   ├── commands/            # Custom slash commands
+│   │   ├── init-project.md
 │   │   ├── commit-push-pr.md
 │   │   ├── test-and-commit.md
 │   │   ├── web-verify.md
@@ -238,6 +246,7 @@ The template includes ready-to-use slash commands:
 
 | Command | Description |
 |---------|-------------|
+| `/init-project` | Create a new project from this template with sync baseline |
 | `/commit-push-pr` | Complete workflow from staged changes to PR creation |
 | `/test-and-commit` | Run tests first, only commit if passing |
 | `/web-verify` | Playwright verification for web routes |

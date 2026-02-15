@@ -170,6 +170,7 @@ Custom slash commands are in `.claude/commands/`. See `example.md` for the forma
 
 | Command | When to use | What it does |
 |---------|-------------|--------------|
+| `/init-project` | Creating a new project | Copies template, bootstraps sync baseline, sets up env |
 | `/test-and-commit` | Ready to commit | Runs tests, commits only if passing |
 | `/commit-push-pr` | Ready for PR | Commits, pushes, creates PR with summary |
 | `/self-review` | After significant work (5+ files) | Structured review checklist before claiming done |
