@@ -2,11 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Project Overview <!-- customizable -->
 
 See `BRIEF.md` for the project description and `docs/SPEC.md` for the technical specification.
 
-## Development Workflow
+## Development Workflow <!-- template-managed -->
 
 ### Phase 0: BRANCH FIRST (Feature Branches Required)
 
@@ -133,7 +133,7 @@ After completing a feature or milestone, review your own work before claiming do
 - Bug fixes, typo corrections, config changes
 - Pure refactoring with no behavior change
 
-## Decision Guidelines
+## Decision Guidelines <!-- template-managed -->
 
 ### ESCALATE (Ask User)
 - User-facing changes (UI, messages, outputs)
@@ -150,20 +150,20 @@ After completing a feature or milestone, review your own work before claiming do
 - Performance optimizations
 - Code organization
 
-## CI & Quality Guidelines
+## CI & Quality Guidelines <!-- template-managed -->
 
 1. **Don't add CI checks the codebase doesn't pass** - Verify existing code passes before adding new checks
 2. **Test hooks locally before committing** - Run hook scripts directly to verify they work
 3. **Align local hooks with CI** - Pre-commit hook and CI should run the same checks
 4. **Keep PRs small and focused** - One logical change per PR when possible
 
-## Reference Documentation
+## Reference Documentation <!-- customizable -->
 
 - `BRIEF.md` - Initial project description (non-technical)
 - `docs/SPEC.md` - Technical specification (grows with project)
 - `docs/PATTERNS.md` - Architectural patterns reference
 
-## Hooks
+## Hooks <!-- template-managed -->
 
 Custom hooks are in `.claude/hooks/`:
 - `pre-commit-check.py` - **Blocking**: Runs tests + lint; blocks direct commits to main
@@ -178,12 +178,13 @@ Custom hooks are in `.claude/hooks/`:
 - `self-review-reminder.py` - **Advisory**: Reminds to run `/self-review` after large changes (5+ files)
 - `pre-flight-check.py` - **Advisory**: Validates environment setup on first prompt (venv, dependencies)
 - `memory-flush.py` - **Advisory**: Reminds to capture session learnings before ending
+- `harvest-check.py` - **Advisory**: Surfaces learning harvest candidates at session end
 
-## Custom Skills
+## Custom Skills <!-- template-managed -->
 
 Custom slash commands are in `.claude/commands/`. See `example.md` for the format.
 
-## Agent Memory
+## Agent Memory <!-- template-managed -->
 
 The memory MCP server (`src/memory_mcp/`) provides self-improving behavioral memory across sessions.
 
@@ -221,7 +222,7 @@ When the user says "reflect", "session review", or "capture learnings":
 2. Memory corrections -- personal behavioral guidance
 3. Memory preferences -- style/format, not analysis decisions
 
-## Post-Implementation Quality Check
+## Post-Implementation Quality Check <!-- template-managed -->
 
 After completing a feature (before claiming "done"), verify:
 
@@ -232,7 +233,7 @@ After completing a feature (before claiming "done"), verify:
 
 Present findings as a checklist before proceeding.
 
-## Pre-PR Self-Review
+## Pre-PR Self-Review <!-- template-managed -->
 
 Before creating a PR or pushing for review:
 
@@ -247,7 +248,7 @@ Before creating a PR or pushing for review:
 
 Skip for typo-only or docs-only changes.
 
-## SPEC.md Updates
+## SPEC.md Updates <!-- template-managed -->
 
 After completing a feature, trigger docs updates by saying:
 - `/spec-update`, "feature complete", "update spec", "update documentation"

@@ -53,25 +53,62 @@ Analyze a project to find improvements worth adding to the templates.
 
 ### Reverse Mode: Templates → Project
 
-Pull the latest template improvements into a project.
+Pull the latest template improvements into a project. This mode also **bootstraps the template-ref** used by the learning harvester.
 
-1. **Inventory both sides**
-   - **Template**: Recursively list ALL files under `.claude/`, `docs/`, and root config files (CLAUDE.md, BRIEF.md, etc.) in the template repo
-   - **Project**: Same recursive listing for the target project (local path: use Glob; GitHub repo: use `gh api` to list trees recursively)
-   - Compare file lists to identify files that exist in one side but not the other
+#### Step 0: Bootstrap Template-Ref (automatic)
 
-2. **Fetch and compare contents**
-   - For files present in both: diff contents to find meaningful differences
-   - For files only in the template: evaluate as candidates to add to the project
-   - For files only in the project: note as project-specific (no action needed)
+On every `--reverse` run, update the project's `.claude/template-ref/` directory:
 
-3. **Evaluate relevance**
-   - Which template features would benefit this project?
-   - Are there project-specific reasons to skip certain features?
+1. **Create `.claude/template-ref/`** in the project if it doesn't exist
+2. **Copy reference snapshots** of template files into it (these are for diffing, not for running):
+   - `CLAUDE.md` → `.claude/template-ref/CLAUDE.md`
+   - `.claude/hooks/*.py` → `.claude/template-ref/hooks/`
+   - `.claude/commands/*.md` → `.claude/template-ref/commands/`
+   - `.claude/agents/*.md` → `.claude/template-ref/agents/` (if exists)
+   - `.claude/settings.json` → `.claude/template-ref/settings.json` (if exists)
+3. **Create/update `.claude/template-ref/meta.yaml`**:
+   ```yaml
+   template_repo: <repo URL or local path used for sync>
+   template_version: <git tag or "initial">
+   last_synced: <today's date YYYY-MM-DD>
+   ```
+4. Template-ref is gitignored — it's a local cache, not committed to the project
 
-4. **Present recommendations**
-   - Show what would be added/updated
-   - Ask which to apply to the project
+#### Step 1: Inventory both sides
+
+- **Template**: Recursively list ALL files under `.claude/`, `docs/`, and root config files (CLAUDE.md, BRIEF.md, etc.) in the template repo
+- **Project**: Same recursive listing for the target project (local path: use Glob; GitHub repo: use `gh api` to list trees recursively)
+- Compare file lists to identify files that exist in one side but not the other
+
+#### Step 2: Fetch and compare contents
+
+- For files present in both: diff contents to find meaningful differences
+- For files only in the template: evaluate as candidates to add to the project
+- For files only in the project: note as project-specific (no action needed)
+
+#### Step 3: Copy template tooling to project
+
+Automatically copy these template files to the project (these ARE committed to the project repo — they're real tooling):
+- `.claude/commands/*.md` → project's `.claude/commands/` (including `harvest-learnings.md`)
+- `.claude/hooks/*.py` → project's `.claude/hooks/`
+- `.claude/scripts/harvester/*.py` → project's `.claude/scripts/harvester/`
+
+**Overwrite rules:**
+- **New files** (in template but not in project): always copy
+- **Unchanged files** (project file matches template-ref snapshot from last sync): safe to update — project hasn't customized it
+- **Customized files** (project file differs from BOTH template-ref AND current template): do NOT overwrite. Flag for manual review. The user has customized this file.
+- Use template-ref as the merge base to distinguish "template updated" from "project customized"
+
+#### Step 4: Evaluate relevance
+
+- Which template features would benefit this project?
+- Are there project-specific reasons to skip certain features?
+
+#### Step 5: Present recommendations
+
+- Show what would be added/updated
+- Show which files were auto-copied vs flagged for review
+- Ask which remaining changes to apply to the project
 
 ## What to Analyze
 
