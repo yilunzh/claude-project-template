@@ -38,4 +38,15 @@ jobs:
             - Best practices for Python and GitHub Actions
             - Consistency with existing patterns
 
+            Also check for architectural issues in changed files:
+            - Files over 300 lines (suggest splitting)
+            - Dead code: functions/classes defined but never called
+            - Performance: O(n^2) patterns, repeated collection scans
+            - Correctness: string comparisons that should be enums, non-atomic file ops,
+              mutable default args, missing error handling on I/O
+            - Test gaps: new source files without corresponding test files
+            - Import issues: circular imports, imports from deleted modules
+            - Unused or undeclared dependencies
+
             Be concise. Only comment on issues worth fixing.
+            Rate architectural findings as Critical/Warning/Info.

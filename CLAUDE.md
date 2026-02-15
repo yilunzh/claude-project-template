@@ -95,13 +95,14 @@ Done when: Tests pass, user-facing changes reviewed, todos marked complete.
 
 1. **Run tests** — all must pass
 2. **Self-review** (if 5+ files changed): Run `/self-review` for structured checklist
-3. **Quality check**:
+3. **Arch review** (if new modules created or 3+ dirs changed): Run `/arch-review` for structural health
+4. **Quality check**:
    - Doc alignment: check if CLAUDE.md, README.md reference changed files
    - Dead code: verify functions in changed files are imported/called somewhere
    - Import consistency: no imports from deleted/renamed modules
-4. **Present findings** as prioritized gap list to user
+5. **Present findings** as prioritized gap list to user
 
-**When to skip self-review**: Bug fixes, typo corrections, config changes, pure refactoring.
+**When to skip reviews**: Bug fixes, typo corrections, config changes, pure refactoring (fewer than 3 files).
 
 Done when: Tests pass, gaps presented (or skipped if criteria not met).
 
@@ -157,7 +158,7 @@ Custom hooks are in `.claude/hooks/`:
 - `completion-checklist.py` - **Blocking**: Ensures tests were run before session ends
 - `session-handoff.py` - **Blocking**: Detects incomplete work, requires handoff
 - `spec-update-check.py` - Triggers SPEC.md updates on key phrases
-- `self-review-reminder.py` - **Advisory**: Reminds to run `/self-review` after large changes (5+ files)
+- `self-review-reminder.py` - **Advisory**: Reminds to run `/self-review` (5+ files changed) and `/arch-review` (new modules, cross-cutting changes, large files)
 - `pre-flight-check.py` - **Advisory**: Validates environment setup on first prompt (venv, dependencies)
 - `memory-flush.py` - **Advisory**: Reminds to capture session learnings before ending
 - `harvest-check.py` - **Advisory**: Surfaces learning harvest candidates at session end
@@ -174,6 +175,7 @@ Custom slash commands are in `.claude/commands/`. See `example.md` for the forma
 | `/test-and-commit` | Ready to commit | Runs tests, commits only if passing |
 | `/commit-push-pr` | Ready for PR | Commits, pushes, creates PR with summary |
 | `/self-review` | After significant work (5+ files) | Structured review checklist before claiming done |
+| `/arch-review` | After structural changes | Codebase health: module size, dead code, coverage gaps |
 | `/reflect` | End of session | Captures corrections, preferences, patterns to memory |
 | `/harvest-learnings` | When harvest candidates exist | Extracts and classifies learnings for cross-project promotion |
 | `/web-verify` | After UI changes | Playwright verification of web routes |
