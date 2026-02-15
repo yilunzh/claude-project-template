@@ -188,6 +188,16 @@ Custom slash commands are in `.claude/commands/`. See `example.md` for the forma
 
 The memory MCP server (`src/memory_mcp/`) provides self-improving behavioral memory across sessions.
 
+### Memory Systems
+
+Two memory systems exist. Use the right one:
+
+- **Memory MCP** (`.claude/memory/*.yaml`) — **Default for all learning capture.** Structured lifecycle (active → pattern_candidate → promoted), feeds the harvester pipeline for cross-project promotion. Use `capture_memory()` for corrections, preferences, patterns.
+- **Auto memory** (`~/.claude/projects/.../memory/`) — **Curated stable reference only.** Loaded into system prompt automatically. Use for confirmed environment facts, stable patterns validated across sessions, and quick-reference notes. Do NOT capture new learnings here — they won't feed the harvester.
+
+When reflecting or capturing learnings, ALWAYS use memory MCP tools.
+When a memory MCP entry gets promoted and is important enough for instant system-prompt access, add a one-liner to auto memory as a "graduated" reference.
+
 ### When to Capture
 
 - When the user explicitly corrects you, call `capture_memory(type="correction", signal="explicit_correction", ...)`
@@ -219,8 +229,9 @@ When the user says "reflect", "session review", or "capture learnings":
 ### Memory Hierarchy
 
 1. CLAUDE.md rules (highest authority) -- always follow
-2. Memory corrections -- personal behavioral guidance
-3. Memory preferences -- style/format, not analysis decisions
+2. Memory MCP corrections -- personal behavioral guidance (structured, lifecycle-managed)
+3. Memory MCP preferences -- style/format, not analysis decisions
+4. Auto memory -- stable reference facts (environment, confirmed patterns)
 
 ## Post-Implementation Quality Check <!-- template-managed -->
 
