@@ -9,8 +9,11 @@ through the learning review -> approval -> apply_proposal pipeline.
 """
 
 import logging
+import os
 import re
+import tempfile
 from datetime import date, datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Optional
 
@@ -64,6 +67,12 @@ WEIGHT_PHASE = 2
 WEIGHT_REINFORCEMENT = 2
 WEIGHT_RECENCY = 1
 GATEKEEPER_THRESHOLD = 2.0
+
+# Dedup scoring weights and threshold
+DEDUP_W_KEYWORD = 0.4
+DEDUP_W_SEQUENCE = 0.35
+DEDUP_W_JACCARD = 0.25
+DEDUP_THRESHOLD = 0.30
 
 
 # --- Utilities ---
@@ -150,6 +159,25 @@ def validate_memory_entry(entry: dict) -> Optional[str]:
         )
 
     return None
+
+
+def _atomic_write_yaml(path: Path, data: dict) -> None:
+    """Write YAML atomically using temp file + rename.
+
+    Prevents corruption from concurrent writes by writing to a
+    temporary file first, then atomically replacing the target.
+    """
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        os.replace(tmp_path, str(path))
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 # --- Tools ---
@@ -287,11 +315,7 @@ def capture_memory(
         dup_entry["status"] = "superseded"
         dup_entry["superseded_by"] = new_id
         try:
-            with open(dup_path, "w") as f:
-                yaml.dump(
-                    dup_entry, f,
-                    default_flow_style=False, sort_keys=False, allow_unicode=True,
-                )
+            _atomic_write_yaml(dup_path, dup_entry)
         except Exception as e:
             logger.warning(f"Failed to mark old memory as superseded: {e}")
         # Fall through to create the new entry
@@ -345,14 +369,7 @@ def capture_memory(
 
     # Write YAML
     try:
-        with open(filepath, "w") as f:
-            yaml.dump(
-                entry,
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
+        _atomic_write_yaml(filepath, entry)
 
         msg = (
             f"Captured **{type}** to memory: `{summary}` "
@@ -609,8 +626,48 @@ def _find_memory_by_id(memory_id: str) -> tuple[Optional[Path], Optional[dict]]:
     return None, None
 
 
-def _extract_keywords(text: str) -> set[str]:
-    """Extract meaningful keywords from text for dedup matching."""
+def _stem(word: str) -> str:
+    """Lightweight suffix stripping for dedup keyword matching.
+
+    Handles common English suffixes to normalize variants like
+    memories→memori, learnings→learn, incrementally→increment.
+    Applies rules iteratively so "learnings" → "learning" → "learn".
+    """
+    if len(word) <= 3:
+        return word
+
+    prev = None
+    while prev != word:
+        prev = word
+        if word.endswith("ies") and len(word) > 4:
+            word = word[:-3] + "i"
+            continue
+        if word.endswith("ing") and len(word) > 5:
+            word = word[:-3]
+            continue
+        if word.endswith("ly") and len(word) > 4:
+            word = word[:-2]
+            continue
+        if word.endswith("ed") and len(word) > 4:
+            word = word[:-2]
+            continue
+        if word.endswith("es") and len(word) > 4:
+            word = word[:-2]
+            continue
+        if word.endswith("s") and not word.endswith("ss") and len(word) > 4:
+            word = word[:-1]
+            continue
+
+    return word
+
+
+def _extract_keywords(text: str, stem: bool = False) -> set[str]:
+    """Extract meaningful keywords from text for dedup matching.
+
+    Args:
+        text: Input text to extract keywords from.
+        stem: If True, apply lightweight stemming to each keyword.
+    """
     # Lowercase, split on non-alphanumeric, filter short words
     words = re.findall(r"[a-z0-9_]+", text.lower())
     stop_words = {
@@ -622,7 +679,79 @@ def _extract_keywords(text: str) -> set[str]:
         "but", "or", "not", "no", "if", "then", "than", "that",
         "this", "it", "its", "when", "where", "which", "what",
     }
-    return {w for w in words if len(w) > 2 and w not in stop_words}
+    keywords = {w for w in words if len(w) > 2 and w not in stop_words}
+    if stem:
+        return {_stem(w) for w in keywords}
+    return keywords
+
+
+def _first_sentence(text: str) -> str:
+    """Extract the first sentence from text."""
+    parts = re.split(r"[.!?\n]", text, maxsplit=1)
+    return parts[0].strip() if parts else text
+
+
+def _compute_signal_scores(
+    summary_a: str, summary_b: str
+) -> tuple[float, float, float]:
+    """Compute the three raw similarity signals between two summaries.
+
+    Returns (keyword_ratio, sequence_ratio, jaccard).
+    """
+    kw_a = _extract_keywords(summary_a, stem=True)
+    kw_b = _extract_keywords(summary_b, stem=True)
+
+    if not kw_a or not kw_b:
+        return 0.0, 0.0, 0.0
+
+    overlap = kw_a & kw_b
+    keyword_ratio = len(overlap) / min(len(kw_a), len(kw_b))
+
+    sequence_ratio = SequenceMatcher(
+        None, summary_a.lower(), summary_b.lower()
+    ).ratio()
+
+    union = kw_a | kw_b
+    jaccard = len(overlap) / len(union) if union else 0.0
+
+    return keyword_ratio, sequence_ratio, jaccard
+
+
+def _weighted_score(keyword_ratio: float, sequence_ratio: float, jaccard: float) -> float:
+    """Combine raw signals into a weighted similarity score."""
+    return (
+        DEDUP_W_KEYWORD * keyword_ratio
+        + DEDUP_W_SEQUENCE * sequence_ratio
+        + DEDUP_W_JACCARD * jaccard
+    )
+
+
+def _similarity_score(summary_a: str, summary_b: str) -> float:
+    """Compute multi-signal similarity score between two summaries.
+
+    Compares both full text and first sentences, returning the higher
+    score. First-sentence comparison prevents long summaries from
+    diluting the signal when the core concept is in the opening.
+
+    Returns a score in [0.0, 1.0].
+    """
+    if not summary_a or not summary_b:
+        return 0.0
+
+    # Score on full text
+    full_signals = _compute_signal_scores(summary_a, summary_b)
+    full_score = _weighted_score(*full_signals)
+
+    # Score on first sentences (helps when one summary is much longer)
+    fs_a = _first_sentence(summary_a)
+    fs_b = _first_sentence(summary_b)
+
+    if fs_a != summary_a or fs_b != summary_b:
+        fs_signals = _compute_signal_scores(fs_a, fs_b)
+        fs_score = _weighted_score(*fs_signals)
+        return max(full_score, fs_score)
+
+    return full_score
 
 
 NEGATION_PAIRS = [
@@ -666,10 +795,11 @@ def _find_duplicate(
         return None, None, "none"
 
     new_tables = set(t.lower() for t in tables_list)
-    new_keywords = _extract_keywords(summary)
 
-    if not new_keywords:
+    if not _extract_keywords(summary):
         return None, None, "none"
+
+    best_match: tuple[Optional[Path], Optional[dict], float] = (None, None, 0.0)
 
     for yaml_file in target_dir.glob("*.yaml"):
         try:
@@ -687,7 +817,6 @@ def _find_duplicate(
         existing_tables = set(
             t.lower() for t in entry.get("tables", []) if isinstance(t, str)
         )
-        existing_keywords = _extract_keywords(entry.get("summary", ""))
 
         # Check table overlap (if both have tables, they must overlap)
         tables_match = True
@@ -700,18 +829,21 @@ def _find_duplicate(
         if not tables_match:
             continue
 
-        # Check keyword overlap
-        if not existing_keywords:
+        existing_summary = entry.get("summary", "")
+        if not _extract_keywords(existing_summary):
             continue
 
-        overlap = new_keywords & existing_keywords
-        overlap_ratio = len(overlap) / min(len(new_keywords), len(existing_keywords))
+        score = _similarity_score(summary, existing_summary)
 
-        if overlap_ratio > 0.5:
-            # Check for contradiction
-            if _has_contradiction(summary, entry.get("summary", "")):
-                return yaml_file, entry, "contradiction"
-            return yaml_file, entry, "duplicate"
+        if score > best_match[2]:
+            best_match = (yaml_file, entry, score)
+
+    filepath, entry, score = best_match
+    if score >= DEDUP_THRESHOLD and filepath and entry:
+        # Check for contradiction
+        if _has_contradiction(summary, entry.get("summary", "")):
+            return filepath, entry, "contradiction"
+        return filepath, entry, "duplicate"
 
     return None, None, "none"
 
@@ -773,14 +905,7 @@ def reinforce_memory(memory_id: str, session: str = "") -> str:
 
     # Write back
     try:
-        with open(filepath, "w") as f:
-            yaml.dump(
-                entry,
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
+        _atomic_write_yaml(filepath, entry)
 
         count = entry["times_reinforced"]
         msg = f"Reinforced memory `{memory_id}` ({count}x)."
@@ -1306,11 +1431,7 @@ def _apply_personal(
             memory_entry["status"] = "reverted"
 
         try:
-            with open(memory_filepath, "w") as f:
-                yaml.dump(
-                    memory_entry, f,
-                    default_flow_style=False, sort_keys=False, allow_unicode=True,
-                )
+            _atomic_write_yaml(memory_filepath, memory_entry)
         except Exception as e:
             logger.warning(f"Failed to update memory status: {e}")
 
@@ -1399,11 +1520,7 @@ def _apply_platform(
                 memory_entry["status"] = "reverted"
 
             try:
-                with open(memory_filepath, "w") as f:
-                    yaml.dump(
-                        memory_entry, f,
-                        default_flow_style=False, sort_keys=False, allow_unicode=True,
-                    )
+                _atomic_write_yaml(memory_filepath, memory_entry)
             except Exception as e:
                 logger.warning(f"Failed to update memory status: {e}")
 
@@ -1464,13 +1581,7 @@ def _run_maintenance(all_entries: list[tuple[Path, dict]]) -> dict:
         if status == "active" and days_since > DECAY_DAYS:
             entry["status"] = "decayed"
             try:
-                with open(filepath, "w") as f:
-                    yaml.dump(
-                        entry, f,
-                        default_flow_style=False,
-                        sort_keys=False,
-                        allow_unicode=True,
-                    )
+                _atomic_write_yaml(filepath, entry)
                 summary["decayed"] += 1
             except Exception as e:
                 logger.warning(f"Failed to decay memory {filepath}: {e}")

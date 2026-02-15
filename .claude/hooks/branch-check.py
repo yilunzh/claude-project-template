@@ -5,22 +5,10 @@ Enforces feature branch workflow. Allows editing plan files and handoffs.
 """
 import json
 import os
-import subprocess
 import sys
 
-
-def get_current_branch():
-    """Get the current git branch name."""
-    try:
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            cwd=os.environ.get("CLAUDE_PROJECT_DIR", "."),
-        )
-        return result.stdout.strip()
-    except Exception:
-        return ""
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import get_current_branch, read_json_stdin
 
 
 def is_exempt_path(file_path):
@@ -49,9 +37,8 @@ def is_exempt_path(file_path):
 
 def main():
     # Read hook input from stdin
-    try:
-        input_data = json.load(sys.stdin)
-    except json.JSONDecodeError:
+    input_data = read_json_stdin()
+    if not input_data:
         return {"decision": "allow"}
 
     tool_input = input_data.get("tool_input", {})

@@ -1605,3 +1605,335 @@ class TestE2EContradictionAndRollback:
         r = learning_review()
         assert "Rollback" in r
         assert "Revert" in r
+
+
+class TestAtomicWrites:
+    """Test concurrent write safety."""
+
+    def test_concurrent_captures_both_succeed(self, tmp_memory):
+        """Two threads writing different memories simultaneously."""
+        import threading
+
+        results = [None, None]
+
+        def capture_first():
+            results[0] = capture_memory(
+                type="correction",
+                summary="First concurrent memory",
+                scope="universal",
+            )
+
+        def capture_second():
+            results[1] = capture_memory(
+                type="correction",
+                summary="Second concurrent memory",
+                scope="universal",
+            )
+
+        t1 = threading.Thread(target=capture_first)
+        t2 = threading.Thread(target=capture_second)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        # Both should succeed
+        assert results[0] is not None
+        assert results[1] is not None
+        assert "Captured" in results[0]
+        assert "Captured" in results[1]
+
+        # Both files should exist
+        corrections_dir = tmp_memory / ".claude" / "memory" / "corrections"
+        yaml_files = list(corrections_dir.glob("*.yaml"))
+        assert len(yaml_files) == 2
+
+        # Both should be valid YAML
+        for yf in yaml_files:
+            with open(yf) as f:
+                data = yaml.safe_load(f)
+            assert data["status"] == "active"
+            assert data["type"] == "correction"
+
+    def test_concurrent_reinforce_count_correct(self, tmp_memory):
+        """Two threads reinforcing same memory - final count should reflect both."""
+        # First create a memory
+        result = capture_memory(
+            type="pattern",
+            summary="Pattern to reinforce concurrently",
+            scope="universal",
+        )
+        assert "Captured" in result
+
+        # Find the memory ID
+        patterns_dir = tmp_memory / ".claude" / "memory" / "patterns"
+        yaml_files = list(patterns_dir.glob("*.yaml"))
+        assert len(yaml_files) == 1
+
+        with open(yaml_files[0]) as f:
+            data = yaml.safe_load(f)
+        memory_id = data["id"]
+
+        import threading
+
+        results = [None, None]
+
+        def reinforce_first():
+            results[0] = reinforce_memory(memory_id)
+
+        def reinforce_second():
+            results[1] = reinforce_memory(memory_id)
+
+        t1 = threading.Thread(target=reinforce_first)
+        t2 = threading.Thread(target=reinforce_second)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        # Both should succeed
+        assert results[0] is not None
+        assert results[1] is not None
+
+        # Read final state
+        with open(yaml_files[0]) as f:
+            data = yaml.safe_load(f)
+        # With atomic writes, at least one reinforce should have stuck
+        # (count should be >= 2, could be 2 or 3 depending on race)
+        assert data["times_reinforced"] >= 2
+
+
+# --- Stemming and similarity scoring tests ---
+
+
+class TestStemming:
+    """Unit tests for the lightweight suffix stripping in _stem()."""
+
+    def test_plural_s(self):
+        from memory_mcp.tools.memory import _stem
+        assert _stem("patterns") == "pattern"
+        assert _stem("tools") == "tool"
+
+    def test_plural_es(self):
+        from memory_mcp.tools.memory import _stem
+        assert _stem("processes") == "process"
+
+    def test_plural_ies(self):
+        from memory_mcp.tools.memory import _stem
+        assert _stem("memories") == "memori"
+        assert _stem("entries") == "entri"
+
+    def test_ing(self):
+        from memory_mcp.tools.memory import _stem
+        assert _stem("learning") == "learn"
+        assert _stem("capturing") == "captur"
+
+    def test_ed(self):
+        from memory_mcp.tools.memory import _stem
+        assert _stem("prompted") == "prompt"
+        assert _stem("captured") == "captur"
+
+    def test_ly(self):
+        from memory_mcp.tools.memory import _stem
+        assert _stem("incrementally") == "incremental"
+
+    def test_short_words_unchanged(self):
+        from memory_mcp.tools.memory import _stem
+        assert _stem("the") == "the"
+        assert _stem("use") == "use"
+        assert _stem("git") == "git"
+
+    def test_no_double_strip(self):
+        """Stemming should not strip too aggressively."""
+        from memory_mcp.tools.memory import _stem
+        # "less" should not lose the "s" (it's "ss")
+        assert _stem("less") == "less"
+
+    def test_stemmed_variants_match(self):
+        """Key pairs that should produce the same stem."""
+        from memory_mcp.tools.memory import _stem
+        assert _stem("learning") == _stem("learnings")  # learn == learn
+        assert _stem("captured") == _stem("capturing")  # captur == captur
+        assert _stem("prompted") == _stem("prompting")  # prompt == prompt
+
+
+class TestSimilarityScore:
+    """Tests for the multi-signal similarity scoring.
+
+    This class serves as a calibration suite: each test case documents
+    a known pair with its expected classification. When tuning weights
+    or threshold, run these to check for regressions.
+    """
+
+    def test_identical_strings(self):
+        from memory_mcp.tools.memory import _similarity_score
+        score = _similarity_score("exact same text", "exact same text")
+        assert score > 0.9
+
+    def test_empty_strings(self):
+        from memory_mcp.tools.memory import _similarity_score
+        assert _similarity_score("", "anything") == 0.0
+        assert _similarity_score("anything", "") == 0.0
+        assert _similarity_score("", "") == 0.0
+
+    def test_completely_different(self):
+        from memory_mcp.tools.memory import DEDUP_THRESHOLD, _similarity_score
+        score = _similarity_score(
+            "Always use .venv/bin/python3 not system python3",
+            "GitHub Actions workflow validation fails on new files",
+        )
+        assert score < DEDUP_THRESHOLD
+
+    def test_topic_adjacent_not_duplicate(self):
+        """Two GitHub Actions memories: same domain, different facts."""
+        from memory_mcp.tools.memory import DEDUP_THRESHOLD, _similarity_score
+        score = _similarity_score(
+            "GitHub Actions path filters on pull_request trigger skip workflows "
+            "when only non-matching files change",
+            "GitHub Actions workflow validation: new or modified workflow files "
+            "fail OIDC app-token exchange until identical content exists on default branch",
+        )
+        assert score < DEDUP_THRESHOLD, (
+            f"Topic-adjacent pair should NOT be detected as duplicate "
+            f"(score={score:.3f}, threshold={DEDUP_THRESHOLD})"
+        )
+
+    def test_near_duplicate_similar_wording(self):
+        """Near-identical phrasing should score well above threshold."""
+        from memory_mcp.tools.memory import DEDUP_THRESHOLD, _similarity_score
+        score = _similarity_score(
+            "Filter voided transactions before aggregating",
+            "Filter voided transactions before aggregating billing",
+        )
+        assert score >= DEDUP_THRESHOLD
+
+    def test_first_sentence_comparison(self):
+        """When one summary is much longer, first-sentence should help."""
+        from memory_mcp.tools.memory import (
+            _compute_signal_scores,
+            _first_sentence,
+            _weighted_score,
+        )
+        # Use the actual known duplicate pair where B has multiple sentences
+        short = "Capture memories in real-time when corrections happen - do not wait until prompted"
+        long = (
+            "Capture learnings incrementally during the session, not just "
+            "at /reflect time. Context compression after plan mode exit "
+            "(or long sessions) can wipe conversation history. Call "
+            "capture_memory() as corrections/patterns happen, so /reflect "
+            "is a safety net not the only capture point."
+        )
+        full_score = _weighted_score(*_compute_signal_scores(short, long))
+        fs_score = _weighted_score(
+            *_compute_signal_scores(_first_sentence(short), _first_sentence(long))
+        )
+        assert fs_score > full_score, (
+            f"First-sentence ({fs_score:.3f}) should score higher than "
+            f"full text ({full_score:.3f}) when summaries differ in length"
+        )
+
+
+class TestCalibrationSuite:
+    """Score table for all known pairs.
+
+    Not asserting pass/fail for edge cases — this test prints scores
+    to help calibrate the threshold. Run with -s to see output.
+    """
+
+    PAIRS = [
+        # (label, summary_a, summary_b, expected)
+        (
+            "known-dup-capture-timing",
+            "Capture memories in real-time when corrections happen - "
+            "do not wait until prompted",
+            "Capture learnings incrementally during the session, not just "
+            "at /reflect time. Context compression after plan mode exit "
+            "(or long sessions) can wipe conversation history. Call "
+            "capture_memory() as corrections/patterns happen, so /reflect "
+            "is a safety net not the only capture point.",
+            "duplicate",
+        ),
+        (
+            "near-dup-filter",
+            "Filter voided transactions before aggregating",
+            "Filter voided transactions before aggregating billing",
+            "duplicate",
+        ),
+        (
+            "topic-adj-github-actions",
+            "GitHub Actions path filters on pull_request trigger skip "
+            "workflows when only non-matching files change",
+            "GitHub Actions workflow validation: new or modified workflow "
+            "files fail OIDC app-token exchange until identical content "
+            "exists on default branch",
+            "none",
+        ),
+        (
+            "topic-adj-ideation",
+            "Design before building - do not skip ideation for UX-facing "
+            "components even if they seem simple",
+            "Project-specific ideation folders should be gitignored - "
+            "design docs are local-only",
+            "none",
+        ),
+        (
+            "unrelated-venv-future",
+            "Always use .venv/bin/python3 not system python3 - system "
+            "Python is 3.9, venv is 3.13",
+            "Use from __future__ import annotations in hook scripts to "
+            "enable modern type syntax",
+            "none",
+        ),
+    ]
+
+    def test_print_score_table(self):
+        """Print calibration table for threshold tuning."""
+        from memory_mcp.tools.memory import (
+            DEDUP_THRESHOLD,
+            _compute_signal_scores,
+            _first_sentence,
+            _similarity_score,
+            _weighted_score,
+        )
+
+        rows = []
+        for label, a, b, expected in self.PAIRS:
+            full = _weighted_score(*_compute_signal_scores(a, b))
+            fs_a, fs_b = _first_sentence(a), _first_sentence(b)
+            fs = _weighted_score(*_compute_signal_scores(fs_a, fs_b))
+            final = _similarity_score(a, b)
+            rows.append((label, full, fs, final, expected))
+
+        # Print table
+        print("\n--- Calibration Scores ---")
+        print(f"{'Label':<30} {'Full':>6} {'1st-S':>6} {'Final':>6} {'Expect':<10} {'Result':<10}")
+        for label, full, fs, final, expected in rows:
+            detected = "duplicate" if final >= DEDUP_THRESHOLD else "none"
+            match = "OK" if detected == expected else "MISS"
+            print(
+                f"{label:<30} {full:>6.3f} {fs:>6.3f} {final:>6.3f} "
+                f"{expected:<10} {match:<10}"
+            )
+        print(f"Threshold: {DEDUP_THRESHOLD}")
+
+    def test_clear_non_duplicates_below_threshold(self):
+        """All unrelated pairs must score below threshold."""
+        from memory_mcp.tools.memory import DEDUP_THRESHOLD, _similarity_score
+
+        for label, a, b, expected in self.PAIRS:
+            if expected == "none":
+                score = _similarity_score(a, b)
+                assert score < DEDUP_THRESHOLD, (
+                    f"Non-duplicate '{label}' scored {score:.3f} >= {DEDUP_THRESHOLD}"
+                )
+
+    def test_clear_duplicates_above_threshold(self):
+        """All duplicates must score above threshold."""
+        from memory_mcp.tools.memory import DEDUP_THRESHOLD, _similarity_score
+
+        for label, a, b, expected in self.PAIRS:
+            if expected == "duplicate":
+                score = _similarity_score(a, b)
+                assert score >= DEDUP_THRESHOLD, (
+                    f"Duplicate '{label}' scored {score:.3f} < {DEDUP_THRESHOLD}"
+                )

@@ -25,6 +25,8 @@ Before making ANY changes:
 
 Only small, trivial changes (typo fixes, config tweaks) can go directly to main.
 
+Done when: On a feature/fix branch, not main.
+
 ### Merge Requirements
 
 Before merging any PR:
@@ -54,6 +56,8 @@ Before writing ANY implementation code, you MUST:
 - Component library preference (if any)
 - Key screens/interactions to get right
 
+Done when: All ambiguous requirements clarified.
+
 ### Phase 2: PLAN (Create Todo List)
 
 After clarification, create a todo list with:
@@ -61,77 +65,45 @@ After clarification, create a todo list with:
 - Test steps (which tests to update/add)
 - Verification step ("Run tests, confirm passing")
 
+Done when: Todo list created with implementation, test, and verification steps.
+
 ### Phase 3: IMPLEMENT (Autonomous Execution)
 
 Now proceed WITHOUT asking for confirmation:
 1. Make incremental changes
-2. Run related tests after each change
-3. Fix failures immediately
-4. Continue to next step
+2. Fix failures immediately
+3. Continue to next step
 
-### Context Checkpoints (IMPORTANT)
+**Checkpoints**: Every 3-5 major edits, update `.claude/session-context.md` with: Current Goal, Decisions Made, Files Modified, What's Next. Hooks remind at 3 edits, insist at 5.
 
-**Every 3-5 major code edits**, update `.claude/session-context.md` with:
+For multi-session work, write `.claude/handoff.md` before ending.
 
-```markdown
-## Current Goal
-What we're trying to accomplish
+Done when: All implementation steps complete.
 
-## Decisions Made
-- Key choice 1 and rationale
-- Key choice 2 and rationale
-
-## Files Modified
-- file1.py - what changed
-- file2.html - what changed
-
-## What's Next
-- Remaining step 1
-- Remaining step 2
-```
-
-**Why this matters:**
-- Prevents context loss during long sessions
-- Hooks will remind you at 3 edits, insist at 5 edits
-- Session end is blocked if incomplete work detected without handoff
-
-**For multi-session work**, write `.claude/handoff.md` before ending with the same sections.
-
-### Phase 4: VERIFY (Before Claiming Done)
+### Phase 4: VERIFY
 
 Before saying "done":
 1. Run tests - all must pass
 2. If user-facing changes: present options for review
 3. Mark todo items completed
 
-**Verification Efficiency:**
-- **Define "done" upfront**: Before starting, identify what verification is needed. Once met, stop.
-- **Trust existing tests**: If a relevant test passes, that's sufficient. Don't duplicate.
-- **One verification path**: Choose either existing test OR manual check. Not both.
-- **Don't over-verify**: More verification does not equal better. Sufficient verification = done.
+**For UI changes**, use Playwright to verify: `browser_navigate` → `browser_snapshot` → compare against expectations.
 
-**For UI changes**, use Playwright to verify:
-1. Use `browser_navigate` to visit affected pages
-2. Use `browser_snapshot` to verify pages load correctly
-3. Compare against design inspiration/expectations
+Done when: Tests pass, user-facing changes reviewed, todos marked complete.
 
-### Phase 5: SELF-REVIEW (For Significant Work)
+### Phase 5: BEFORE CLAIMING DONE
 
-After completing a feature or milestone, review your own work before claiming done:
+1. **Run tests** — all must pass
+2. **Self-review** (if 5+ files changed): Run `/self-review` for structured checklist
+3. **Quality check**:
+   - Doc alignment: check if CLAUDE.md, README.md reference changed files
+   - Dead code: verify functions in changed files are imported/called somewhere
+   - Import consistency: no imports from deleted/renamed modules
+4. **Present findings** as prioritized gap list to user
 
-1. Run `/self-review` to execute the structured review checklist
-2. Present findings as a **prioritized gap list** to the user
-3. User decides which gaps to address now vs. defer to Known Gaps
+**When to skip self-review**: Bug fixes, typo corrections, config changes, pure refactoring.
 
-**When to self-review:**
-- Any feature that touches 5+ files
-- New API endpoints or data models
-- Security-related changes
-- Infrastructure/CI changes
-
-**When to skip:**
-- Bug fixes, typo corrections, config changes
-- Pure refactoring with no behavior change
+Done when: Tests pass, gaps presented (or skipped if criteria not met).
 
 ## Decision Guidelines <!-- template-managed -->
 
@@ -254,32 +226,6 @@ When the user says "reflect", "session review", or "capture learnings":
 2. Memory MCP corrections -- personal behavioral guidance (structured, lifecycle-managed)
 3. Memory MCP preferences -- style/format, not analysis decisions
 4. Auto memory -- stable reference facts (environment, confirmed patterns)
-
-## Post-Implementation Quality Check <!-- template-managed -->
-
-After completing a feature (before claiming "done"), verify:
-
-1. **Doc alignment** -- For each changed file, check if CLAUDE.md, README.md, or commands reference it. Fix stale descriptions.
-2. **Dead code** -- For each function in changed files, verify it's imported/called somewhere. Delete unused functions.
-3. **Import consistency** -- Check no files import from deleted or renamed modules. Update stale imports.
-4. **Gitignore compliance** -- Check no files that should be gitignored are tracked (`git ls-files .env .claude/memory/corrections/`).
-
-Present findings as a checklist before proceeding.
-
-## Pre-PR Self-Review <!-- template-managed -->
-
-Before creating a PR or pushing for review:
-
-1. **Run full test suite** -- all tests must pass
-2. **Diff review** (`git diff main...HEAD`) -- check every changed file for:
-   - **Security**: path traversal, input validation, hardcoded secrets, PII
-   - **Defensive coding**: error handling, null safety, timeouts on subprocess calls
-   - **Consistency**: naming conventions, docstrings, import style
-   - **Fragility**: shell safety, path construction, magic numbers
-3. **Cross-reference** -- new functions have tests, deleted functions have no remaining imports/references
-4. **Present findings** -- list CRITICAL/MODERATE/MINOR issues before creating PR
-
-Skip for typo-only or docs-only changes.
 
 ## SPEC.md Updates <!-- template-managed -->
 

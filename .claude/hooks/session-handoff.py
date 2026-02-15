@@ -10,55 +10,26 @@ Blocks if 2+ signals detected, advisory warning if 1 signal.
 """
 import json
 import os
-import subprocess
-from datetime import datetime, timedelta
+import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import get_changed_files, get_project_dir, handoff_recent, is_code_file
 
 
 def get_uncommitted_changes():
-    """Check git for uncommitted changes to tracked files."""
-    try:
-        cwd = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-
-        # Check for staged changes
-        staged = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            capture_output=True,
-            text=True,
-            cwd=cwd
-        )
-
-        # Check for unstaged changes to tracked files
-        unstaged = subprocess.run(
-            ["git", "diff", "--name-only"],
-            capture_output=True,
-            text=True,
-            cwd=cwd
-        )
-
-        staged_files = [f for f in staged.stdout.strip().split("\n") if f]
-        unstaged_files = [f for f in unstaged.stdout.strip().split("\n") if f]
-
-        # Filter to code files only (ignore .claude/ files and config)
-        code_extensions = [".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".go", ".rs"]
-        skip_patterns = [".claude/", "requirements", ".env", ".gitignore", "package-lock.json"]
-
-        def is_code_file(f):
-            is_code = any(f.endswith(ext) for ext in code_extensions)
-            is_skipped = any(pattern in f for pattern in skip_patterns)
-            return is_code and not is_skipped
-
-        code_changes = list(set(f for f in staged_files + unstaged_files if is_code_file(f)))
-
-        return code_changes
-    except Exception:
-        return []
+    """Check git for uncommitted code changes to tracked files."""
+    all_changed = get_changed_files()
+    skip = [".claude/", "requirements", ".env", ".gitignore", "package-lock.json"]
+    return [
+        f for f in all_changed
+        if is_code_file(f) and not any(p in f for p in skip)
+    ]
 
 
 def get_step_count():
     """Read step counter to see edit activity."""
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    counter_path = Path(project_dir) / ".claude" / ".step-counter"
+    counter_path = Path(get_project_dir()) / ".claude" / ".step-counter"
 
     if not counter_path.exists():
         return 0
@@ -72,36 +43,40 @@ def get_step_count():
 
 
 def check_transcript_for_incomplete_todos():
-    """Check transcript for in_progress todo items."""
+    """Check transcript for in_progress todo items.
+
+    Looks for in_progress status patterns that appear near TodoWrite or
+    TaskUpdate tool calls, rather than bare substring matching which
+    could false-positive on unrelated text.
+    """
     transcript = os.environ.get("CLAUDE_TRANSCRIPT", "")
 
     if not transcript:
         return False
 
-    # Look for TodoWrite with in_progress items
-    if '"status": "in_progress"' in transcript or "'status': 'in_progress'" in transcript:
-        last_in_progress = transcript.rfind("in_progress")
-        remaining = transcript[last_in_progress:]
-        return "completed" not in remaining[:500].lower()
+    # Look for in_progress status near task tool context
+    task_contexts = ["TodoWrite", "TaskUpdate", "TaskCreate", "todo"]
+    has_task_context = any(ctx in transcript for ctx in task_contexts)
 
-    return False
-
-
-def handoff_exists_and_recent():
-    """Check if handoff.md exists and is recent."""
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    handoff_path = Path(project_dir) / ".claude" / "handoff.md"
-
-    if not handoff_path.exists():
+    if not has_task_context:
         return False
 
-    mtime = datetime.fromtimestamp(handoff_path.stat().st_mtime)
-    return datetime.now() - mtime < timedelta(minutes=5)
+    # Now check for in_progress patterns
+    in_progress_pattern = '"status": "in_progress"'
+    alt_pattern = "'status': 'in_progress'"
+
+    if in_progress_pattern not in transcript and alt_pattern not in transcript:
+        return False
+
+    # Find last in_progress and check if it was later completed
+    last_in_progress = transcript.rfind("in_progress")
+    remaining = transcript[last_in_progress:]
+    return "completed" not in remaining[:500].lower()
 
 
 def main():
     # Skip if handoff already written
-    if handoff_exists_and_recent():
+    if handoff_recent():
         return {"continue": True}
 
     # Collect signals

@@ -7,11 +7,15 @@ Always advisory — never blocks.
 import json
 import os
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import filter_source_files, get_project_dir
 
 
 def get_changed_source_files():
     """Get source files changed relative to main (or recent commits)."""
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
+    project_dir = get_project_dir()
 
     # Try diff against main first (feature branch workflow)
     for base in ["main", "master"]:
@@ -35,38 +39,6 @@ def get_changed_source_files():
         return filter_source_files(result.stdout.strip().split("\n"))
 
     return []
-
-
-def filter_source_files(files):
-    """Filter to source files only (exclude tests, config, .claude/)."""
-    skip_patterns = [
-        "test_",
-        "_test.",
-        ".test.",
-        "tests/",
-        "__pycache__",
-        ".claude/",
-        ".gitignore",
-        "README",
-        "BRIEF.md",
-        "CLAUDE.md",
-        "SPEC.md",
-        "PATTERNS.md",
-        ".json",
-        ".toml",
-        ".cfg",
-        ".ini",
-        ".yml",
-        ".yaml",
-        ".lock",
-        ".md",
-    ]
-
-    source_files = []
-    for f in files:
-        if not any(pattern in f for pattern in skip_patterns):
-            source_files.append(f)
-    return source_files
 
 
 def self_review_already_run():

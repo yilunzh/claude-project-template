@@ -13,18 +13,11 @@ NOTE: Only applies to features that went through /ideate and have implementation
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
-
-def get_current_branch():
-    """Get current git branch name."""
-    result = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True,
-        text=True,
-        cwd=os.environ.get("CLAUDE_PROJECT_DIR", "."),
-    )
-    return result.stdout.strip() if result.returncode == 0 else ""
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import get_current_branch, get_project_dir
 
 
 def get_matching_feature(branch, features_with_plans):
@@ -54,26 +47,18 @@ def get_all_ideation_features(project_dir):
 
 def get_staged_files():
     """Get list of staged files."""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            capture_output=True,
-            text=True,
-            cwd=os.environ.get("CLAUDE_PROJECT_DIR", "."),
-        )
-        return result.stdout.strip().split("\n") if result.stdout.strip() else []
-    except Exception:
-        return []
+    from hook_utils import get_changed_files
+    return get_changed_files(staged_only=True)
 
 
 def get_modified_files():
-    """Get list of all modified files (staged + unstaged)."""
+    """Get list of all modified files (staged + unstaged via porcelain)."""
     try:
         result = subprocess.run(
             ["git", "status", "--porcelain"],
             capture_output=True,
             text=True,
-            cwd=os.environ.get("CLAUDE_PROJECT_DIR", "."),
+            cwd=get_project_dir(),
         )
         files = []
         for line in result.stdout.strip().split("\n"):
@@ -118,7 +103,7 @@ def get_updated_plans(files):
 
 
 def main():
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
+    project_dir = get_project_dir()
     hook_type = os.environ.get("CLAUDE_HOOK_TYPE", "")
 
     # Get all features with implementation plans
