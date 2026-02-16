@@ -686,7 +686,11 @@ class TestCaptureReflection:
             investigation="debug-session",
             went_well="Found the bug quickly",
             could_improve="Took wrong approach initially",
-            root_causes="Took wrong approach → didn't read logs first → assumed code was correct → Root cause: skipped diagnostic step",
+            root_causes=(
+                "Took wrong approach → didn't read logs first"
+                " → assumed code was correct"
+                " → Root cause: skipped diagnostic step"
+            ),
         )
         assert "Captured reflection" in result
 
@@ -703,7 +707,10 @@ class TestCaptureReflection:
             investigation="refactor-session",
             went_well="Clean refactor",
             could_improve="Missed edge case",
-            behavioral_changes="Always check edge cases before refactoring|Run grep for existing usage before creating helpers",
+            behavioral_changes=(
+                "Always check edge cases before refactoring"
+                "|Run grep for existing usage before creating helpers"
+            ),
         )
         assert "Captured reflection" in result
 
@@ -720,7 +727,12 @@ class TestCaptureReflection:
             went_well="Good collaboration",
             could_improve="Slow start, Wrong assumption on API",
             proposed_learning="Check API docs before coding",
-            root_causes="Slow start → didn't plan → Root cause: skipped planning phase|Wrong API assumption → didn't read docs → Root cause: skipped reference check",
+            root_causes=(
+                "Slow start → didn't plan"
+                " → Root cause: skipped planning phase"
+                "|Wrong API assumption → didn't read docs"
+                " → Root cause: skipped reference check"
+            ),
             behavioral_changes="Always plan before coding|Read API docs before making assumptions",
         )
         assert "Captured reflection" in result
