@@ -1,7 +1,7 @@
 """Shared utilities for Claude Code hooks.
 
 Consolidates common patterns: git operations, file filtering,
-JSON I/O, and checkpoint/handoff freshness checks.
+JSON I/O, checkpoint/handoff freshness checks, and metric logging.
 """
 
 from __future__ import annotations
