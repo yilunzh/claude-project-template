@@ -1,6 +1,6 @@
 # Claude Code Project Template
 
-A **framework-agnostic** template for AI-assisted development with Claude Code. Captures proven development workflow patterns without prescribing a specific tech stack.
+A **framework-agnostic** template for AI-assisted development with Claude Code. Captures proven development workflow patterns without prescribing a specific tech stack. Includes automated CI, Claude-powered code review, and security review on every PR.
 
 ## What This Is
 
