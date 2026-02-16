@@ -1,5 +1,7 @@
 # Harvest Learnings
 
+First, log this invocation: `.venv/bin/python3 .claude/hooks/_lib/log_command.py "harvest-learnings"`
+
 Scan the current project for improvements worth propagating back to the template. Classifies candidates into auto-promote, review, and auto-skip tiers.
 
 ## Usage

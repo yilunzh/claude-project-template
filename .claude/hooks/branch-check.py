@@ -8,7 +8,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
-from hook_utils import get_current_branch, read_json_stdin
+from hook_utils import get_current_branch, log_metric, read_json_stdin
 
 
 def is_exempt_path(file_path):
@@ -39,6 +39,7 @@ def main():
     # Read hook input from stdin
     input_data = read_json_stdin()
     if not input_data:
+        log_metric("branch-check", "skip", "auto", "allow", "no input data")
         return {"decision": "allow"}
 
     tool_input = input_data.get("tool_input", {})
@@ -46,12 +47,14 @@ def main():
 
     # Allow exempt paths (plans, handoffs, global config)
     if is_exempt_path(file_path):
+        log_metric("branch-check", "skip", "auto", "allow", f"exempt path: {file_path}")
         return {"decision": "allow"}
 
     # Check branch
     branch = get_current_branch()
 
     if branch == "main":
+        log_metric("branch-check", "run", "auto", "block", f"edit on main: {file_path}")
         return {
             "decision": "block",
             "reason": (
@@ -62,6 +65,7 @@ def main():
             ),
         }
 
+    log_metric("branch-check", "run", "auto", "allow", f"branch: {branch}")
     return {"decision": "allow"}
 
 

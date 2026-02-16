@@ -7,7 +7,9 @@ Validates required sections exist.
 import json
 import os
 import sys
-from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import log_metric, write_step_counter
 
 REQUIRED_SECTIONS = [
     ("current goal", ["current goal", "## current goal", "**current goal**", "# current goal"]),
@@ -41,19 +43,12 @@ def validate_checkpoint(content):
 
 def reset_step_counter():
     """Reset the step counter after a valid checkpoint."""
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    counter_path = Path(project_dir) / ".claude" / ".step-counter"
-
     try:
-        with open(counter_path, "w") as f:
-            json.dump(
-                {
-                    "count": 0,
-                    "last_checkpoint": "session-context.md",
-                    "reset_reason": "valid checkpoint written",
-                },
-                f,
-            )
+        write_step_counter({
+            "count": 0,
+            "last_checkpoint": "session-context.md",
+            "reset_reason": "valid checkpoint written",
+        })
     except IOError:
         pass
 
@@ -70,6 +65,7 @@ def main():
 
     # Only validate session-context.md
     if "session-context.md" not in file_path:
+        log_metric("checkpoint-validator", "skip", "auto", "skip", "not session-context.md")
         return {"continue": True}
 
     # Read the file that was just written
@@ -77,12 +73,15 @@ def main():
         with open(file_path, "r") as f:
             content = f.read()
     except IOError:
+        log_metric("checkpoint-validator", "skip", "auto", "skip", "cannot read file")
         return {"continue": True}
 
     # Validate sections
     missing = validate_checkpoint(content)
 
     if missing:
+        detail = f"missing: {', '.join(missing)}"
+        log_metric("checkpoint-validator", "run", "auto", "advisory", detail)
         return {
             "continue": True,  # Advisory, don't block
             "message": (
@@ -94,6 +93,7 @@ def main():
     # Reset step counter on valid checkpoint
     reset_step_counter()
 
+    log_metric("checkpoint-validator", "run", "auto", "advisory", "validated and reset")
     return {"continue": True, "message": "Checkpoint validated. Step counter reset."}
 
 

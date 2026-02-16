@@ -1,6 +1,7 @@
 """Tests for memory.py -- capture, load, scoring, filtering,
 reinforcement, dedup, review, reflection."""
 
+import json
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -1408,7 +1409,7 @@ class TestHook:
         """Hook should advise when no memory activity today."""
         import subprocess
         import sys
-        hook_path = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "memory-flush.py"
+        hook_path = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "memory-check.py"
         result = subprocess.run(
             [sys.executable, str(hook_path)],
             capture_output=True,
@@ -1416,7 +1417,9 @@ class TestHook:
             cwd=str(tmp_memory),
             env={**__import__("os").environ, "CLAUDE_PROJECT_DIR": str(tmp_memory)},
         )
-        assert "ADVISORY" in result.stdout or "learning_review" in result.stdout
+        output = json.loads(result.stdout)
+        assert output["continue"] is True
+        assert "/reflect" in output.get("message", "")
 
     def test_hook_quiet(self, tmp_memory):
         """Hook should be silent when memory activity exists today."""
@@ -1427,7 +1430,7 @@ class TestHook:
 
         import subprocess
         import sys
-        hook_path = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "memory-flush.py"
+        hook_path = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "memory-check.py"
         result = subprocess.run(
             [sys.executable, str(hook_path)],
             capture_output=True,
@@ -1435,7 +1438,8 @@ class TestHook:
             cwd=str(tmp_memory),
             env={**__import__("os").environ, "CLAUDE_PROJECT_DIR": str(tmp_memory)},
         )
-        assert "ADVISORY" not in result.stdout
+        output = json.loads(result.stdout)
+        assert "message" not in output or "/reflect" not in output.get("message", "")
 
 
 class TestE2EFullLifecycle:

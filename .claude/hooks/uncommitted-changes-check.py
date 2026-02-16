@@ -7,9 +7,10 @@ Advisory only - doesn't block.
 import json
 import os
 import subprocess
+import sys
 
-# Track if we've already shown the warning this session
-STATE_FILE = "/tmp/claude-uncommitted-warning-shown"
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import log_metric, session_once
 
 
 def get_uncommitted_changes():
@@ -51,28 +52,25 @@ def get_uncommitted_changes():
 
 def main():
     # Only show once per session
-    session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
-    state_file = f"{STATE_FILE}-{session_id}"
-
-    if os.path.exists(state_file):
+    if not session_once("uncommitted-warning-shown"):
+        log_metric(
+            "uncommitted-changes-check", "skip", "auto", "skip",
+            "already shown this session",
+        )
         return {"continue": True}
 
     changes = get_uncommitted_changes()
 
     if not changes:
-        # Mark as shown even if no changes, so we don't check repeatedly
-        with open(state_file, "w") as f:
-            f.write("shown")
+        log_metric("uncommitted-changes-check", "run", "auto", "allow", "no changes")
         return {"continue": True}
-
-    # Mark as shown
-    with open(state_file, "w") as f:
-        f.write("shown")
 
     # Build warning message
     change_list = "\n".join(changes[:10])  # Limit to 10 files
     extra = f"\n  ... and {len(changes) - 10} more" if len(changes) > 10 else ""
 
+    detail = f"{len(changes)} uncommitted changes"
+    log_metric("uncommitted-changes-check", "run", "auto", "advisory", detail)
     return {
         "continue": True,
         "message": f"""Uncommitted changes detected.

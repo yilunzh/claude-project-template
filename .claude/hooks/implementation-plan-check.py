@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
-from hook_utils import get_current_branch, get_project_dir
+from hook_utils import get_current_branch, get_project_dir, log_metric
 
 
 def get_matching_feature(branch, features_with_plans):
@@ -110,6 +110,7 @@ def main():
     features_with_plans = get_all_ideation_features(project_dir)
 
     if not features_with_plans:
+        log_metric("implementation-plan-check", "skip", "auto", "skip", "no features with plans")
         return {"continue": True}
 
     # Determine which files to check based on hook type
@@ -119,11 +120,13 @@ def main():
         files = get_modified_files()
 
     if not files:
+        log_metric("implementation-plan-check", "skip", "auto", "skip", "no files changed")
         return {"continue": True}
 
     # Check if any code files are being changed
     has_code_changes = any(is_code_file(f) for f in files)
     if not has_code_changes:
+        log_metric("implementation-plan-check", "skip", "auto", "skip", "no code changes")
         return {"continue": True}
 
     # Check which plans were updated
@@ -144,6 +147,8 @@ def main():
             f"  - .claude/ideation/{f}/implementation-plan.md"
             for f in plans_needing_update
         )
+        detail = f"plan needs update: {', '.join(plans_needing_update)}"
+        log_metric("implementation-plan-check", "run", "auto", "advisory", detail)
         return {
             "continue": True,  # Advisory - don't block
             "message": f"ACTION REQUIRED: Update the implementation plan before committing.\n\n"
@@ -156,6 +161,7 @@ def main():
                        f"5. Stage the updated plan file with the commit"
         }
 
+    log_metric("implementation-plan-check", "run", "auto", "allow", "no update needed")
     return {"continue": True}
 
 

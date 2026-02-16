@@ -160,8 +160,7 @@ Custom hooks are in `.claude/hooks/`:
 - `spec-update-check.py` - Triggers SPEC.md updates on key phrases
 - `self-review-reminder.py` - **Advisory**: Reminds to run `/self-review` (5+ files changed) and `/arch-review` (new modules, cross-cutting changes, large files)
 - `pre-flight-check.py` - **Advisory**: Validates environment setup on first prompt (venv, dependencies)
-- `memory-flush.py` - **Advisory**: Reminds to capture session learnings before ending
-- `harvest-check.py` - **Advisory**: Surfaces learning harvest candidates at session end
+- `memory-check.py` - **Advisory**: Reminds to capture learnings + surfaces harvest candidates at session end
 
 ## Custom Skills <!-- template-managed -->
 

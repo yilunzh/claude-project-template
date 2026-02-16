@@ -11,10 +11,15 @@ Blocks if 2+ signals detected, advisory warning if 1 signal.
 import json
 import os
 import sys
-from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
-from hook_utils import get_changed_files, get_project_dir, handoff_recent, is_code_file
+from hook_utils import (
+    get_changed_files,
+    handoff_recent,
+    is_code_file,
+    log_metric,
+    read_step_counter,
+)
 
 
 def get_uncommitted_changes():
@@ -25,21 +30,6 @@ def get_uncommitted_changes():
         f for f in all_changed
         if is_code_file(f) and not any(p in f for p in skip)
     ]
-
-
-def get_step_count():
-    """Read step counter to see edit activity."""
-    counter_path = Path(get_project_dir()) / ".claude" / ".step-counter"
-
-    if not counter_path.exists():
-        return 0
-
-    try:
-        with open(counter_path, "r") as f:
-            data = json.load(f)
-            return data.get("count", 0)
-    except (json.JSONDecodeError, IOError):
-        return 0
 
 
 def check_transcript_for_incomplete_todos():
@@ -77,6 +67,7 @@ def check_transcript_for_incomplete_todos():
 def main():
     # Skip if handoff already written
     if handoff_recent():
+        log_metric("session-handoff", "skip", "auto", "skip", "handoff recent")
         return {"continue": True}
 
     # Collect signals
@@ -91,7 +82,7 @@ def main():
         signals.append(f"Uncommitted changes: {file_list}")
 
     # Signal 2: High step count without recent checkpoint
-    step_count = get_step_count()
+    step_count = read_step_counter().get("count", 0)
     if step_count >= 3:
         signals.append(f"{step_count} edits since last checkpoint")
 
@@ -101,6 +92,8 @@ def main():
 
     # Require 2+ signals to block (reduces false positives)
     if len(signals) >= 2:
+        detail = f"{len(signals)} signals: {'; '.join(signals)}"
+        log_metric("session-handoff", "run", "auto", "block", detail)
         return {
             "continue": False,
             "stopReason": (
@@ -116,6 +109,7 @@ def main():
 
     # Single signal: advisory warning only
     if len(signals) == 1:
+        log_metric("session-handoff", "run", "auto", "advisory", f"1 signal: {signals[0]}")
         return {
             "continue": True,
             "message": (
@@ -124,6 +118,7 @@ def main():
             ),
         }
 
+    log_metric("session-handoff", "run", "auto", "allow", "no signals")
     return {"continue": True}
 
 
