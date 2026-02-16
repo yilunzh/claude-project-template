@@ -23,7 +23,20 @@
       "Bash(date:*)",
       "Bash(which:*)",
       "Bash(command -v:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(echo:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(tee:*)",
+      "Bash(test:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(python3:*)",
+      "Bash(ruff:*)",
+      "Bash(PYTHONPATH=src .venv/bin/pytest:*)",
+      "Bash(CLAUDE_PROJECT_DIR=*)",
+      "WebSearch",
+      "WebFetch"
     ]
   },
   "mcpServers": {
