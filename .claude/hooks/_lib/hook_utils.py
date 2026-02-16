@@ -409,7 +409,6 @@ def log_metric(
 
 # Maps advisory hook names to transcript patterns that indicate compliance.
 _COMPLIANCE_PATTERNS: dict[str, list[str]] = {
-    "post-edit-verify": ["pytest", "npm test", "cargo test", "go test"],
     "self-review-reminder": ["/self-review", "/arch-review"],
     "checkpoint-reminder": ["session-context.md"],
     "memory-check": [

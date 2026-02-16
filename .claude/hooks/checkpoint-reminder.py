@@ -2,6 +2,8 @@
 """PostToolUse hook: Remind to checkpoint every 3-5 major steps.
 
 Tracks edits via a simple counter file. Advisory only - doesn't block.
+Also validates checkpoint sections when session-context.md is written.
+(Merged from former checkpoint-validator.py)
 """
 import json
 import os
@@ -18,12 +20,60 @@ from hook_utils import (
     write_step_counter,
 )
 
+CHECKPOINT_SECTIONS = [
+    ("current goal", ["current goal", "## current goal", "**current goal**", "# current goal"]),
+    ("decisions made", ["decisions made", "## decisions", "**decisions made**", "key decisions"]),
+    ("files modified", ["files modified", "## files", "**files modified**", "files touched"]),
+    ("what's next", ["what's next", "## next", "**what's next**", "next steps", "remaining"]),
+]
+
+
+def validate_checkpoint(file_path):
+    """Validate checkpoint sections when session-context.md is written."""
+    if "session-context.md" not in file_path:
+        return None
+
+    try:
+        with open(file_path, "r") as f:
+            content = f.read().lower()
+    except IOError:
+        return None
+
+    missing = [
+        name for name, patterns in CHECKPOINT_SECTIONS
+        if not any(p in content for p in patterns)
+    ]
+
+    if missing:
+        detail = f"missing: {', '.join(missing)}"
+        log_metric("checkpoint-reminder", "run", "auto", "advisory", detail)
+        return (
+            f"Checkpoint incomplete. Missing sections: {', '.join(missing)}. "
+            "Required: Current goal, Decisions made, Files modified, What's next."
+        )
+
+    # Valid checkpoint — reset step counter
+    write_step_counter({
+        "count": 0,
+        "last_checkpoint": "session-context.md",
+        "reset_reason": "valid checkpoint written",
+    })
+    log_metric("checkpoint-reminder", "run", "auto", "advisory", "validated and reset")
+    return None  # No message needed — checkpoint is valid
+
 
 def main():
     # Read hook input
     input_data = read_json_stdin()
     tool_input = input_data.get("tool_input", {})
     file_path = tool_input.get("file_path", "")
+
+    # If this is a checkpoint write, validate it
+    validation_msg = validate_checkpoint(file_path)
+    if validation_msg:
+        return {"continue": True, "message": validation_msg}
+    if "session-context.md" in file_path:
+        return {"continue": True}  # Valid checkpoint, no reminder needed
 
     # Only count major steps
     if not is_major_step(file_path):

@@ -500,14 +500,14 @@ class TestCheckAdvisoryCompliance:
         metrics = tmp_path / ".claude" / "hook-metrics.jsonl"
         metrics.parent.mkdir(parents=True)
         entry = json.dumps({
-            "name": "post-edit-verify", "event": "run",
+            "name": "self-review-reminder", "event": "run",
             "decision": "advisory", "ts": f"{today}T10:00:00",
         })
         metrics.write_text(entry + "\n")
-        with patch.dict(os.environ, {"CLAUDE_TRANSCRIPT": "ran pytest -v"}):
+        with patch.dict(os.environ, {"CLAUDE_TRANSCRIPT": "ran /self-review"}):
             result = hook_utils.check_advisory_compliance(str(tmp_path))
         assert len(result) == 1
-        assert result[0]["name"] == "post-edit-verify"
+        assert result[0]["name"] == "self-review-reminder"
         assert result[0]["decision"] == "followed"
 
     def test_detects_ignored(self, tmp_path):
@@ -515,7 +515,7 @@ class TestCheckAdvisoryCompliance:
         metrics = tmp_path / ".claude" / "hook-metrics.jsonl"
         metrics.parent.mkdir(parents=True)
         entry = json.dumps({
-            "name": "post-edit-verify", "event": "run",
+            "name": "self-review-reminder", "event": "run",
             "decision": "advisory", "ts": f"{today}T10:00:00",
         })
         metrics.write_text(entry + "\n")

@@ -137,8 +137,9 @@ Three workflows in `.github/workflows/`:
 - **`ci.yml`** — Runs `ruff check .` + `pytest` on every PR and push to main. Mirrors what `pre-commit-check.py` does locally. The `test` job is a required status check for merging.
 - **`claude-review.yml`** — Claude-powered code review on PRs (quality, bugs, best practices). Posts inline comments.
 - **`security-review.yml`** — Claude-powered security review on PRs (OWASP Top 10, secrets, injection). Posts inline comments.
+- **`claude.yml`** — Interactive Claude agent triggered by `@claude` mentions in issues, PR comments, and PR reviews.
 
-**Required secret**: `ANTHROPIC_API_KEY` must be set in GitHub repo settings (Settings → Secrets → Actions) for the Claude review workflows to function.
+**Required secret**: `CLAUDE_CODE_OAUTH_TOKEN` must be set in GitHub repo settings (Settings → Secrets → Actions) for the Claude workflows to function.
 
 ## Reference Documentation <!-- customizable -->
 
@@ -152,9 +153,7 @@ Custom hooks are in `.claude/hooks/`:
 - `pre-commit-check.py` - **Blocking**: Runs tests + lint; blocks direct commits to main
 - `branch-check.py` - **Blocking**: Prevents edits on main branch
 - `uncommitted-changes-check.py` - **Advisory**: Warns about uncommitted changes at session start (runs on first user prompt)
-- `post-edit-verify.py` - **Advisory**: Reminds to run tests after editing files
-- `checkpoint-reminder.py` - **Advisory**: Reminds to checkpoint every 3-5 edits
-- `checkpoint-validator.py` - **Advisory**: Validates checkpoint has required sections, resets step counter
+- `checkpoint-reminder.py` - **Advisory**: Reminds to checkpoint every 3-5 edits; validates checkpoint sections and resets step counter when `session-context.md` is written
 - `completion-checklist.py` - **Blocking**: Ensures tests were run before session ends
 - `session-handoff.py` - **Blocking**: Detects incomplete work, requires handoff
 - `spec-update-check.py` - Triggers SPEC.md updates on key phrases

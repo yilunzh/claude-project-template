@@ -20,6 +20,11 @@ Run tests first, only commit if they pass.
    - Create commit with descriptive message
    - Include `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
 
+## Important
+
+- **Never chain git commands with `&&`** — use separate Bash tool calls for each git command (add, commit). Chained commands bypass permission wildcards.
+- **Never use `git -C <path>`** — run git from the working directory directly.
+
 ## Test Failure Response
 
 If tests fail, output:
