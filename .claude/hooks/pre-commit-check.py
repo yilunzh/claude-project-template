@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
-from hook_utils import get_current_branch
+from hook_utils import detect_linter, detect_test_runner, get_current_branch, log_metric
 
 
 def get_staged_file_count():
@@ -20,77 +20,6 @@ def get_staged_file_count():
     )
     files = [f for f in result.stdout.strip().split("\n") if f]
     return len(files)
-
-
-def detect_test_runner():
-    """Detect test runner based on project files."""
-    # Node.js projects
-    if os.path.exists("package.json"):
-        try:
-            with open("package.json") as f:
-                pkg = json.load(f)
-                if "test" in pkg.get("scripts", {}):
-                    return ["npm", "test"]
-        except (json.JSONDecodeError, IOError):
-            pass
-        # Check for specific test frameworks
-        if os.path.exists("vitest.config.ts") or os.path.exists("vitest.config.js"):
-            return ["npx", "vitest", "run"]
-        if os.path.exists("jest.config.js") or os.path.exists("jest.config.ts"):
-            return ["npx", "jest"]
-
-    # Python projects
-    if os.path.exists("requirements.txt") or os.path.exists("pyproject.toml"):
-        if os.path.exists("pytest.ini") or os.path.exists("conftest.py"):
-            return ["pytest", "-v", "--tb=short", "-q"]
-        if os.path.exists("pyproject.toml"):
-            try:
-                with open("pyproject.toml") as f:
-                    if "pytest" in f.read():
-                        return ["pytest", "-v", "--tb=short", "-q"]
-            except IOError:
-                pass
-        return ["python", "-m", "unittest", "discover"]
-
-    # Rust projects
-    if os.path.exists("Cargo.toml"):
-        return ["cargo", "test"]
-
-    # Go projects
-    if os.path.exists("go.mod"):
-        return ["go", "test", "./..."]
-
-    return None
-
-
-def detect_linter():
-    """Detect linter based on project files."""
-    # Node.js linters
-    eslint_configs = [".eslintrc.js", ".eslintrc.json", "eslint.config.js"]
-    if any(os.path.exists(c) for c in eslint_configs):
-        return ["npx", "eslint", "."]
-
-    # Python linters
-    if os.path.exists("pyproject.toml"):
-        try:
-            with open("pyproject.toml") as f:
-                content = f.read()
-                if "ruff" in content:
-                    return ["ruff", "check", "."]
-        except IOError:
-            pass
-    if os.path.exists(".flake8") or os.path.exists("setup.cfg"):
-        return ["flake8"]
-
-    # Rust linter
-    if os.path.exists("Cargo.toml"):
-        return ["cargo", "clippy"]
-
-    # Go linter
-    if os.path.exists("go.mod"):
-        return ["go", "vet", "./..."]
-
-    return None
 
 
 def run_command(cmd, name):
@@ -138,6 +67,7 @@ def main():
     # Check for secrets in staged files
     secret_findings = check_secrets()
     if secret_findings:
+        log_metric("pre-commit-check", "run", "auto", "block", "secrets detected")
         return {
             "decision": "block",
             "reason": "Potential secrets detected in staged files:\n"
@@ -149,6 +79,7 @@ def main():
     branch = get_current_branch()
     file_count = get_staged_file_count()
     if branch == "main" and file_count > 0:
+        log_metric("pre-commit-check", "run", "auto", "block", "commit on main")
         return {
             "decision": "block",
             "reason": "Cannot commit directly to main.\n"
@@ -167,6 +98,7 @@ def main():
         checks.append(run_command(test_cmd, f"Tests ({test_cmd[0]})"))
     else:
         # No test runner detected - advisory only
+        log_metric("pre-commit-check", "run", "auto", "allow", "no test runner")
         return {
             "decision": "allow",
             "message": "No test runner detected. Consider adding tests."
@@ -175,10 +107,13 @@ def main():
     failed = [c for c in checks if not c["passed"]]
     if failed:
         reasons = [f"{c['name']}:\n{c['output']}" for c in failed]
+        failed_names = ", ".join(c["name"] for c in failed)
+        log_metric("pre-commit-check", "run", "auto", "block", f"failed: {failed_names}")
         return {
             "decision": "block",
             "reason": "Pre-commit checks failed:\n\n" + "\n---\n".join(reasons),
         }
+    log_metric("pre-commit-check", "run", "auto", "allow", "all checks passed")
     return {"decision": "allow"}
 
 

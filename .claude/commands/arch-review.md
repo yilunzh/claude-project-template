@@ -4,6 +4,8 @@ description: Run an architectural review of the codebase
 
 # Architectural Review
 
+First, log this invocation: `.venv/bin/python3 .claude/hooks/_lib/log_command.py "arch-review"`
+
 Analyze the full codebase for structural health issues. Unlike `/self-review` (which checks the current diff), this reviews the overall architecture.
 
 ## Scope
@@ -77,3 +79,29 @@ Present findings as:
 | Thin tests | `tests/test_hooks.py` | Only 2 test functions |
 
 **Recommendation**: Which issues to fix now vs. defer, prioritized by impact.
+
+### Hook & Command Health
+
+If `.claude/hook-metrics.jsonl` exists, read it and include this section:
+
+1. **Invocation summary**: For each hook, count total invocations, group by decision (allow/block/advisory/skip). Present as a table:
+
+| Hook | Total | Allow | Block | Advisory | Skip |
+|------|-------|-------|-------|----------|------|
+
+2. **Effectiveness flags**:
+   - **Dead hooks**: Registered in `.claude/settings.json` but 0 invocations in the metrics log — may be misconfigured
+   - **High-skip hooks**: >80% skip rate — may need tuning or removal (the hook fires but almost always skips)
+   - **Low-compliance advisories**: Check compliance entries — if an advisory hook has <20% "followed" rate, it may be noise rather than useful guidance
+
+3. **Compliance summary**: For hooks with `event: "compliance"` entries, summarize follow rates:
+
+| Advisory Hook | Times Fired | Followed | Ignored | Follow Rate |
+|--------------|-------------|----------|---------|-------------|
+
+4. **Hook code health**:
+   - Check that all hooks import shared functions from `hook_utils.py` (no duplicated detection/counter logic)
+   - Flag hooks that don't call `log_metric()` (should be zero after consolidation)
+   - Check `settings.json` references match actual hook files on disk
+
+If the metrics file doesn't exist or is empty, note: "No hook metrics data yet. Metrics will accumulate as hooks fire during normal usage."

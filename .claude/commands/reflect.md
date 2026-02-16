@@ -4,6 +4,8 @@ description: Capture session reflection and learnings to memory
 
 # Session Reflection
 
+First, log this invocation: `.venv/bin/python3 .claude/hooks/_lib/log_command.py "reflect"`
+
 Run the full reflect workflow. All steps are mandatory — do not skip any.
 
 ## Step 1: Review conversation for uncaptured learnings

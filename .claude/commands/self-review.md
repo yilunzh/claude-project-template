@@ -4,6 +4,8 @@ description: Run a structured self-review of recent work
 
 # Self-Review Checklist
 
+First, log this invocation: `.venv/bin/python3 .claude/hooks/_lib/log_command.py "self-review"`
+
 Review the code changes in the current branch (or recent commits if on main) against this checklist. For each category, identify specific gaps with file:line references.
 
 ## Generic Checklist

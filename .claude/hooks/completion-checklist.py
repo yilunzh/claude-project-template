@@ -10,7 +10,10 @@ false positives from install commands or unrelated mentions.
 import json  # noqa: I001
 import os
 import re
+import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import log_metric
 
 # Patterns that indicate a test runner was actually *invoked* as a tool command.
 TEST_INVOCATION_PATTERNS = [
@@ -98,6 +101,7 @@ def main():
 
     # If no transcript available, allow but remind
     if not transcript:
+        log_metric("completion-checklist", "skip", "auto", "advisory", "no transcript")
         return {
             "continue": True,
             "message": "Reminder: Ensure you ran tests before finishing.",
@@ -107,6 +111,7 @@ def main():
 
     # Check for test/lint invocation patterns
     if not _check_verification_ran(transcript_lower):
+        log_metric("completion-checklist", "run", "auto", "block", "no tests run")
         return {
             "continue": False,
             "stopReason": "Tests haven't been run this session. "
@@ -115,12 +120,14 @@ def main():
 
     # Check for unresolved test failures
     if _check_test_failures(transcript_lower):
+        log_metric("completion-checklist", "run", "auto", "block", "tests failing")
         return {
             "continue": False,
             "stopReason": "Tests appear to be failing. "
             "Fix failing tests before finishing.",
         }
 
+    log_metric("completion-checklist", "run", "auto", "allow", "tests passed")
     return {"continue": True}
 
 

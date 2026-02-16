@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
-from hook_utils import filter_source_files, get_project_dir
+from hook_utils import filter_source_files, get_project_dir, log_metric
 
 
 def get_changed_source_files():
@@ -112,6 +112,8 @@ def main():
         suggest_arch_review = False
 
     if not suggest_self_review and not suggest_arch_review:
+        detail = f"{len(source_files)} files, no suggestions"
+        log_metric("self-review-reminder", "run", "auto", "skip", detail)
         return {"continue": True}
 
     file_list = "\n".join(f"  - {f}" for f in source_files[:10])
@@ -123,11 +125,16 @@ def main():
         parts.append(f"Note: {arch_reason}.")
 
     parts.append("\nConsider running:")
+    suggestions = []
     if suggest_self_review:
         parts.append("  /self-review — check your diff for security, testing, and CI gaps")
+        suggestions.append("self-review")
     if suggest_arch_review:
         parts.append("  /arch-review — check codebase structural health")
+        suggestions.append("arch-review")
 
+    detail = f"suggested: {', '.join(suggestions)}"
+    log_metric("self-review-reminder", "run", "auto", "advisory", detail)
     return {
         "continue": True,
         "message": "\n".join(parts),

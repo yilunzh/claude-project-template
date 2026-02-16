@@ -197,3 +197,281 @@ def handoff_recent(project_dir: str | None = None, minutes: int = 5) -> bool:
 
     mtime = datetime.fromtimestamp(path.stat().st_mtime)
     return datetime.now() - mtime < timedelta(minutes=minutes)
+
+
+# ---------- Project detection ----------
+
+def detect_project_type(project_dir: str | None = None) -> list[str]:
+    """Detect project type(s) from config files.
+
+    Returns a list like ["python"], ["node"], ["python", "node"], etc.
+    """
+    cwd = project_dir or get_project_dir()
+    types = []
+    if any(
+        os.path.exists(os.path.join(cwd, f))
+        for f in ("pyproject.toml", "setup.py", "requirements.txt")
+    ):
+        types.append("python")
+    if os.path.exists(os.path.join(cwd, "package.json")):
+        types.append("node")
+    if os.path.exists(os.path.join(cwd, "Cargo.toml")):
+        types.append("rust")
+    if os.path.exists(os.path.join(cwd, "go.mod")):
+        types.append("go")
+    return types
+
+
+def detect_test_runner(project_dir: str | None = None) -> list[str] | None:
+    """Detect test runner command based on project files.
+
+    Returns command list like ["pytest", "-v", "--tb=short", "-q"] or None.
+    """
+    cwd = project_dir or get_project_dir()
+
+    # Node.js projects
+    pkg_json = os.path.join(cwd, "package.json")
+    if os.path.exists(pkg_json):
+        try:
+            with open(pkg_json) as f:
+                pkg = json.load(f)
+                if "test" in pkg.get("scripts", {}):
+                    return ["npm", "test"]
+        except (json.JSONDecodeError, IOError):
+            pass
+        if os.path.exists(os.path.join(cwd, "vitest.config.ts")) or \
+           os.path.exists(os.path.join(cwd, "vitest.config.js")):
+            return ["npx", "vitest", "run"]
+        if os.path.exists(os.path.join(cwd, "jest.config.js")) or \
+           os.path.exists(os.path.join(cwd, "jest.config.ts")):
+            return ["npx", "jest"]
+
+    # Python projects
+    if os.path.exists(os.path.join(cwd, "requirements.txt")) or \
+       os.path.exists(os.path.join(cwd, "pyproject.toml")):
+        if os.path.exists(os.path.join(cwd, "pytest.ini")) or \
+           os.path.exists(os.path.join(cwd, "conftest.py")):
+            return ["pytest", "-v", "--tb=short", "-q"]
+        pyproject = os.path.join(cwd, "pyproject.toml")
+        if os.path.exists(pyproject):
+            try:
+                with open(pyproject) as f:
+                    if "pytest" in f.read():
+                        return ["pytest", "-v", "--tb=short", "-q"]
+            except IOError:
+                pass
+        return ["python", "-m", "unittest", "discover"]
+
+    # Rust projects
+    if os.path.exists(os.path.join(cwd, "Cargo.toml")):
+        return ["cargo", "test"]
+
+    # Go projects
+    if os.path.exists(os.path.join(cwd, "go.mod")):
+        return ["go", "test", "./..."]
+
+    return None
+
+
+def detect_linter(project_dir: str | None = None) -> list[str] | None:
+    """Detect linter command based on project files.
+
+    Returns command list like ["ruff", "check", "."] or None.
+    """
+    cwd = project_dir or get_project_dir()
+
+    # Node.js linters
+    eslint_configs = [".eslintrc.js", ".eslintrc.json", "eslint.config.js"]
+    if any(os.path.exists(os.path.join(cwd, c)) for c in eslint_configs):
+        return ["npx", "eslint", "."]
+
+    # Python linters
+    pyproject = os.path.join(cwd, "pyproject.toml")
+    if os.path.exists(pyproject):
+        try:
+            with open(pyproject) as f:
+                if "ruff" in f.read():
+                    return ["ruff", "check", "."]
+        except IOError:
+            pass
+    if os.path.exists(os.path.join(cwd, ".flake8")) or \
+       os.path.exists(os.path.join(cwd, "setup.cfg")):
+        return ["flake8"]
+
+    # Rust linter
+    if os.path.exists(os.path.join(cwd, "Cargo.toml")):
+        return ["cargo", "clippy"]
+
+    # Go linter
+    if os.path.exists(os.path.join(cwd, "go.mod")):
+        return ["go", "vet", "./..."]
+
+    return None
+
+
+# ---------- Session-once marker ----------
+
+def session_once(name: str) -> bool:
+    """Return True the first time called per session, False after.
+
+    Uses /tmp/ marker files keyed by CLAUDE_SESSION_ID.
+    """
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
+    marker = f"/tmp/claude-{name}-{session_id}"
+
+    if os.path.exists(marker):
+        return False
+
+    try:
+        with open(marker, "w") as f:
+            f.write("done")
+    except OSError:
+        pass
+
+    return True
+
+
+# ---------- Step counter ----------
+
+def _step_counter_path(project_dir: str | None = None) -> Path:
+    """Get path to step counter file."""
+    cwd = project_dir or get_project_dir()
+    return Path(cwd) / ".claude" / ".step-counter"
+
+
+def read_step_counter(project_dir: str | None = None) -> dict:
+    """Read current step count and metadata.
+
+    Returns dict with at least {"count": int, "last_checkpoint": ..., "last_update": ...}.
+    """
+    counter_path = _step_counter_path(project_dir)
+    if not counter_path.exists():
+        return {"count": 0, "last_checkpoint": None, "last_update": None}
+
+    try:
+        with open(counter_path) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {"count": 0, "last_checkpoint": None, "last_update": None}
+
+
+def write_step_counter(data: dict, project_dir: str | None = None) -> None:
+    """Write step counter data."""
+    counter_path = _step_counter_path(project_dir)
+    counter_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(counter_path, "w") as f:
+        json.dump(data, f)
+
+
+# ---------- Metrics logging ----------
+
+def log_metric(
+    name: str,
+    event: str,
+    trigger: str = "auto",
+    decision: str = "allow",
+    detail: str = "",
+    project_dir: str | None = None,
+) -> None:
+    """Append one JSON line to .claude/hook-metrics.jsonl.
+
+    Args:
+        name: Hook or command name (e.g. "pre-commit-check").
+        event: What happened (e.g. "run", "skip", "compliance").
+        trigger: "auto" for hook-triggered, "manual" for user-invoked.
+        decision: "allow", "block", "advisory", or "skip".
+        detail: Optional extra context.
+        project_dir: Project root (defaults to CLAUDE_PROJECT_DIR).
+    """
+    try:
+        cwd = project_dir or get_project_dir()
+        metrics_path = Path(cwd) / ".claude" / "hook-metrics.jsonl"
+        metrics_path.parent.mkdir(parents=True, exist_ok=True)
+
+        entry = {
+            "ts": datetime.now().isoformat(),
+            "name": name,
+            "event": event,
+            "trigger": trigger,
+            "decision": decision,
+        }
+        if detail:
+            entry["detail"] = detail
+
+        with open(metrics_path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except OSError:
+        pass  # Fail silent — never break a hook for metrics
+
+
+# ---------- Advisory compliance checking ----------
+
+# Maps advisory hook names to transcript patterns that indicate compliance.
+_COMPLIANCE_PATTERNS: dict[str, list[str]] = {
+    "post-edit-verify": ["pytest", "npm test", "cargo test", "go test"],
+    "self-review-reminder": ["/self-review", "/arch-review"],
+    "checkpoint-reminder": ["session-context.md"],
+    "memory-check": [
+        "capture_memory", "learning_review", "/harvest-learnings", "/reflect",
+    ],
+}
+
+
+def check_advisory_compliance(project_dir: str | None = None) -> list[dict]:
+    """Check transcript for evidence that advisory hooks were followed.
+
+    Reads today's advisory metrics from hook-metrics.jsonl, then searches
+    CLAUDE_TRANSCRIPT for evidence of compliance.
+
+    Returns list of compliance result dicts (also logged as metrics).
+    Reliability: ~65% — good for aggregate trends, not individual instances.
+    """
+    cwd = project_dir or get_project_dir()
+    metrics_path = Path(cwd) / ".claude" / "hook-metrics.jsonl"
+    transcript = os.environ.get("CLAUDE_TRANSCRIPT", "")
+
+    if not metrics_path.exists() or not transcript:
+        return []
+
+    today = datetime.now().date().isoformat()
+    transcript_lower = transcript.lower()
+
+    # Find advisory hooks that fired today
+    advisories_fired: set[str] = set()
+    try:
+        with open(metrics_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    entry.get("decision") == "advisory"
+                    and entry.get("ts", "").startswith(today)
+                ):
+                    advisories_fired.add(entry["name"])
+    except OSError:
+        return []
+
+    # Check compliance for each advisory that fired
+    results = []
+    for hook_name in advisories_fired:
+        patterns = _COMPLIANCE_PATTERNS.get(hook_name)
+        if not patterns:
+            continue
+
+        followed = any(p.lower() in transcript_lower for p in patterns)
+        decision = "followed" if followed else "ignored"
+        result = {"name": hook_name, "decision": decision}
+        results.append(result)
+
+        log_metric(
+            hook_name, "compliance", "auto", decision,
+            project_dir=cwd,
+        )
+
+    return results

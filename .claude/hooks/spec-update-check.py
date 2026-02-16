@@ -13,6 +13,9 @@ import subprocess
 import sys
 from glob import glob
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import log_metric
+
 # Trigger phrases that activate the hook
 TRIGGER_PHRASES = [
     "/spec-update",
@@ -216,6 +219,7 @@ def main():
 
     # If not triggered, exit silently
     if not triggered:
+        log_metric("spec-update-check", "skip", "auto", "skip", "not triggered")
         sys.exit(0)
 
     # Get context
@@ -238,6 +242,7 @@ def main():
         "systemMessage": prompt
     }
 
+    log_metric("spec-update-check", "run", "auto", "advisory", f"triggered by: {trigger_phrase}")
     print(json.dumps(response))
     sys.exit(0)
 

@@ -7,20 +7,10 @@ Runs once per session via marker file. Never blocks.
 import json
 import os
 import subprocess
+import sys
 
-STATE_FILE = "/tmp/claude-pre-flight-done"
-
-
-def detect_project_type(project_dir):
-    """Detect project type from config files."""
-    types = []
-    if os.path.exists(os.path.join(project_dir, "pyproject.toml")) or \
-       os.path.exists(os.path.join(project_dir, "setup.py")) or \
-       os.path.exists(os.path.join(project_dir, "requirements.txt")):
-        types.append("python")
-    if os.path.exists(os.path.join(project_dir, "package.json")):
-        types.append("node")
-    return types
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
+from hook_utils import detect_project_type, log_metric, session_once
 
 
 def check_python(project_dir):
@@ -163,25 +153,17 @@ def check_node(project_dir):
 
 
 def main():
-    session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
-    state_file = f"{STATE_FILE}-{session_id}"
-
     # Only run once per session
-    if os.path.exists(state_file):
+    if not session_once("pre-flight-done"):
+        log_metric("pre-flight-check", "skip", "auto", "skip", "already run this session")
         return {"continue": True}
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
 
-    # Mark as done regardless of result
-    try:
-        with open(state_file, "w") as f:
-            f.write("done")
-    except Exception:
-        pass
-
     project_types = detect_project_type(project_dir)
 
     if not project_types:
+        log_metric("pre-flight-check", "skip", "auto", "skip", "no project type detected")
         return {"continue": True}  # Can't detect project type, skip silently
 
     all_issues = []
@@ -192,9 +174,12 @@ def main():
         all_issues.extend(check_node(project_dir))
 
     if not all_issues:
+        detail = f"no issues ({', '.join(project_types)})"
+        log_metric("pre-flight-check", "run", "auto", "allow", detail)
         return {"continue": True}
 
     issue_list = "\n".join(f"  - {issue}" for issue in all_issues)
+    log_metric("pre-flight-check", "run", "auto", "advisory", f"{len(all_issues)} issues found")
     return {
         "continue": True,
         "message": f"Environment check ({', '.join(project_types)} project):\n{issue_list}",
