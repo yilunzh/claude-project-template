@@ -43,3 +43,7 @@ Types: feat, fix, refactor, test, docs, chore
 - [ ] Tests pass locally
 - [ ] Verified in browser/simulator (if UI)
 ```
+
+NOTE: GitHub Actions workflow files fail OIDC app-token exchange until identical content exists on default branch. First PR adding workflows will always fail review checks.
+
+<!-- Memory-promoted: 2026-02-16, source: pattern-github-actions-workflow-validation-new-or-modified-workflow-, evidence: 3x reinforced -->

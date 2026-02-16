@@ -62,3 +62,22 @@ Show the user:
 3. Any promotion proposals from the learning review
 
 Wait for the user to approve/reject proposals before applying them.
+
+## Step 5: Apply approved proposals
+
+For each proposal the user approves, call `apply_proposal()`:
+
+```bash
+PYTHONPATH=src .venv/bin/python3 -c "
+from memory_mcp.tools.memory import apply_proposal
+print(apply_proposal(
+    memory_id='<memory-id-from-proposal>',
+    target_file='<relative-path-e.g.-.claude/commands/commit-push-pr.md>',
+    action='append',  # 'append' or 'remove'
+    content='<the-content-to-add-or-remove>',
+    scope='personal'  # or 'universal'
+))
+"
+```
+
+**Note:** `target_file` must be in `.claude/commands/` or `.claude/agents/`. Use `action='append'` to add, `action='remove'` to remove.
