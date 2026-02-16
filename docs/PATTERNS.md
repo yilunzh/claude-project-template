@@ -263,6 +263,80 @@ class TimestampMixin:
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 ```
 
+## 5-Step Engineering Audit Pattern
+
+A structured subtraction framework based on the Musk 5-Step Engineering Philosophy. Apply when proposals, features, or architectures feel over-engineered — or proactively to prevent bloat.
+
+### The Sequence (Order Matters)
+
+```
+Step 1: Question requirements ──► "Is this real? Who needs it?"
+         │
+Step 2: Delete ──────────────► "Remove it. See what breaks."
+         │
+Step 3: Simplify ────────────► "Now simplify what remains."
+         │
+Step 4: Accelerate ──────────► "Ship the simple version faster."
+         │
+Step 5: Automate ────────────► "Only automate survivors of 1-4."
+```
+
+**The critical insight:** Most engineers start at step 3 (optimize) or step 5 (automate). Steps 1-2 are where the real leverage lives.
+
+### Key Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Owner requirement** | Every requirement needs a named owner. "Everyone" is not an owner. |
+| **First-principles reasoning** | Trace every requirement to a fundamental need — not precedent, not analogy, not "best practice." |
+| **10% deletion target** | Aim to delete 10% of requirements. If nothing gets reinstated later, you didn't delete enough. |
+| **Schedule as design constraint** | If the plan is too long, the design is too complex. Cut scope, don't add resources. |
+| **Reinstatement calibration** | Expect some deletions to be reinstated. That's the signal you're questioning hard enough. |
+| **Deletion-first bias** | The default action is removal. Features must justify their existence, not their absence. |
+
+### When to Apply
+
+| Context | How to Apply |
+|---------|-------------|
+| **Ideation (Phase 2)** | Full requirements audit with audit table + deletion log |
+| **Architecture (Phase 5)** | Deletion pass on components, APIs, data models. Max 3 layers. |
+| **Implementation planning** | Scope gates: >15 stories → deletion pass, >2 sprints → return to definition |
+| **Code review / PR** | Run `/engineering-review` on the proposal |
+| **Any proposal** | Apply the 7-section format to structure thinking |
+
+### 7-Section Output Format
+
+All audits produce these sections:
+
+1. **First-principles framing** — Why does the problem exist? Core need?
+2. **Requirements audit** — Owner + rationale + deletion test per item
+3. **Proposed deletions** — What to remove, what breaks, what simplifies
+4. **Simplified design** — The design AFTER deletion (not strikethroughs)
+5. **Acceleration plan** — Ship the simplified version faster
+6. **Automation assessment** — Only automate what survived steps 1-4
+7. **Risks + experiments** — What could go wrong, cheapest validation
+
+### Anti-Patterns
+
+| Anti-Pattern | What Happens | Correction |
+|-------------|-------------|------------|
+| Starting at step 3 (optimize) | You optimize complexity instead of removing it | Force yourself through steps 1-2 first. Deletion before optimization. |
+| "Everyone needs this" | Requirements without owners survive unchallenged | Name a specific person or user segment. If you can't, the requirement is suspect. |
+| Justifying by analogy | "Competitors do it" isn't a reason | Trace to first principles. Maybe competitors are wrong too. |
+| 0% deletion rate | Nothing questioned, nothing improved | If you genuinely can't find anything to delete, the scope was probably already tight. But verify — run the audit again with fresh eyes. |
+| Automating before simplifying | Complex automation for a process that shouldn't exist | Ask "should this process exist at all?" before "how do I automate it?" |
+
+### Related Commands
+
+- `/engineering-review` — Standalone 5-step audit with 7-section output
+- `/self-review` — Quality/security checklist (complementary, different focus)
+- `/arch-review` — Structural health check (complementary, different focus)
+
+### Reference
+
+- Full process: `.claude/ideation/IDEATION_PROCESS_MUSK.md`
+- Ideation artifacts: `.claude/ideation/musk-engineering-philosophy/`
+
 ---
 
 *Add new patterns as you learn them. This is a living reference.*
