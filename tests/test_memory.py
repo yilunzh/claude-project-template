@@ -681,6 +681,69 @@ class TestCaptureReflection:
         md_files = list(reflections_dir.glob("*.md"))
         assert len(md_files) == 2
 
+    def test_capture_reflection_with_root_causes(self, tmp_memory):
+        result = capture_reflection(
+            investigation="debug-session",
+            went_well="Found the bug quickly",
+            could_improve="Took wrong approach initially",
+            root_causes="Took wrong approach → didn't read logs first → assumed code was correct → Root cause: skipped diagnostic step",
+        )
+        assert "Captured reflection" in result
+
+        reflections_dir = tmp_memory / ".claude" / "memory" / "reflections"
+        md_files = list(reflections_dir.glob("*.md"))
+        content = md_files[0].read_text()
+        assert "## Root Cause Analysis" in content
+        assert "- Took wrong approach" in content
+        assert "  - → didn't read logs first" in content
+        assert "  - → Root cause: skipped diagnostic step" in content
+
+    def test_capture_reflection_with_behavioral_changes(self, tmp_memory):
+        result = capture_reflection(
+            investigation="refactor-session",
+            went_well="Clean refactor",
+            could_improve="Missed edge case",
+            behavioral_changes="Always check edge cases before refactoring|Run grep for existing usage before creating helpers",
+        )
+        assert "Captured reflection" in result
+
+        reflections_dir = tmp_memory / ".claude" / "memory" / "reflections"
+        md_files = list(reflections_dir.glob("*.md"))
+        content = md_files[0].read_text()
+        assert "## Behavioral Changes" in content
+        assert "- Always check edge cases before refactoring" in content
+        assert "- Run grep for existing usage before creating helpers" in content
+
+    def test_capture_reflection_all_new_fields(self, tmp_memory):
+        result = capture_reflection(
+            investigation="full-session",
+            went_well="Good collaboration",
+            could_improve="Slow start, Wrong assumption on API",
+            proposed_learning="Check API docs before coding",
+            root_causes="Slow start → didn't plan → Root cause: skipped planning phase|Wrong API assumption → didn't read docs → Root cause: skipped reference check",
+            behavioral_changes="Always plan before coding|Read API docs before making assumptions",
+        )
+        assert "Captured reflection" in result
+
+        reflections_dir = tmp_memory / ".claude" / "memory" / "reflections"
+        md_files = list(reflections_dir.glob("*.md"))
+        content = md_files[0].read_text()
+        # All sections present in correct order
+        assert "## What Went Well" in content
+        assert "## What Could Improve" in content
+        assert "## Root Cause Analysis" in content
+        assert "## Behavioral Changes" in content
+        assert "## Proposed Learning" in content
+        # Root causes rendered as nested lists
+        assert "- Slow start" in content
+        assert "  - → didn't plan" in content
+        assert "- Wrong API assumption" in content
+        # Behavioral changes as bullets
+        assert "- Always plan before coding" in content
+        assert "- Read API docs before making assumptions" in content
+        # Proposed learning still works
+        assert "Check API docs before coding" in content
+
     def test_capture_reflection_path_validation(self, tmp_memory):
         result = capture_reflection(
             investigation="../../etc/passwd",
