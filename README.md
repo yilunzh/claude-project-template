@@ -74,24 +74,20 @@ Claude will:
 claude-project-template/
 ├── .claude/
 │   ├── settings.json        # Hooks + MCP server configuration
-│   ├── hooks/               # Quality enforcement scripts (15 hooks)
+│   ├── hooks/               # Quality enforcement scripts (11 hooks)
 │   │   ├── _lib/            # Shared hook utilities
 │   │   │   └── hook_utils.py
 │   │   ├── pre-commit-check.py
 │   │   ├── branch-check.py
 │   │   ├── uncommitted-changes-check.py
-│   │   ├── post-edit-verify.py
-│   │   ├── auto-format.py
 │   │   ├── checkpoint-reminder.py
-│   │   ├── checkpoint-validator.py
 │   │   ├── completion-checklist.py
 │   │   ├── session-handoff.py
 │   │   ├── spec-update-check.py
 │   │   ├── implementation-plan-check.py
-│   │   ├── memory-flush.py
+│   │   ├── memory-check.py
 │   │   ├── self-review-reminder.py
-│   │   ├── pre-flight-check.py
-│   │   └── harvest-check.py
+│   │   └── pre-flight-check.py
 │   ├── commands/            # Custom slash commands
 │   │   ├── init-project.md
 │   │   ├── commit-push-pr.md
@@ -152,25 +148,21 @@ claude-project-template/
 
 ## Hooks
 
-The template includes 15 hooks that enforce the development workflow:
+The template includes 11 hooks that enforce the development workflow:
 
 | Hook | Type | Purpose |
 |------|------|---------|
 | `pre-commit-check.py` | Blocking | Runs tests + lint, blocks commits to main |
 | `branch-check.py` | Blocking | Prevents editing files on main branch |
-| `uncommitted-changes-check.py` | Advisory | Warns about uncommitted changes at session start |
-| `post-edit-verify.py` | Advisory | Reminds to run tests after edits |
-| `auto-format.py` | Advisory | Auto-formats Python files with black/isort |
-| `checkpoint-reminder.py` | Advisory | Reminds to checkpoint every 3-5 edits |
-| `checkpoint-validator.py` | Advisory | Validates checkpoint sections, resets step counter |
 | `completion-checklist.py` | Blocking | Ensures tests ran before session ends |
 | `session-handoff.py` | Blocking | Detects incomplete work, requires handoff |
+| `uncommitted-changes-check.py` | Advisory | Warns about uncommitted changes at session start |
+| `checkpoint-reminder.py` | Advisory | Reminds to checkpoint every 3-5 edits; validates checkpoint sections |
+| `self-review-reminder.py` | Advisory | Reminds to run `/self-review` after large changes (5+ files) |
+| `memory-check.py` | Advisory | Reminds to capture session learnings; surfaces harvest candidates |
 | `spec-update-check.py` | Stop | Triggers SPEC.md updates on key phrases |
 | `implementation-plan-check.py` | Advisory | Reminds to update implementation plans |
-| `memory-flush.py` | Advisory | Reminds to capture session learnings before ending |
-| `self-review-reminder.py` | Advisory | Reminds to run `/self-review` after large changes (5+ files) |
 | `pre-flight-check.py` | Advisory | Validates environment setup on first prompt |
-| `harvest-check.py` | Advisory | Surfaces learning harvest candidates at session end |
 
 ### Language Detection
 
@@ -178,8 +170,8 @@ Hooks automatically detect your project type:
 
 - **Python**: pytest, flake8/ruff
 - **Node.js**: npm test, eslint
-- **Rust**: cargo test, cargo clippy
-- **Go**: go test, go vet
+- **Rust**: cargo test, cargo clippy (detection only — pre-flight validation focused on Python/Node)
+- **Go**: go test, go vet (detection only — pre-flight validation focused on Python/Node)
 
 ## Development Workflow
 
@@ -216,9 +208,7 @@ Session Start
 
 During Work
   ├─ branch-check            → blocks edits on main
-  ├─ post-edit-verify        → reminds to test after edits
-  ├─ checkpoint-reminder     → nudges every 3-5 edits
-  └─ checkpoint-validator    → validates checkpoint sections
+  └─ checkpoint-reminder     → nudges every 3-5 edits; validates checkpoints
 
 Before Commit
   ├─ /test-and-commit        → run tests, commit if passing
@@ -232,8 +222,7 @@ Pull Request
 Session End
   ├─ /reflect                → capture learnings to memory
   ├─ /harvest-learnings      → extract candidates for promotion (if any)
-  ├─ memory-flush            → reminds to capture uncaptured learnings
-  ├─ harvest-check           → surfaces harvest candidates
+  ├─ memory-check            → reminds to capture learnings; surfaces harvest candidates
   ├─ completion-checklist    → ensures tests were run
   └─ session-handoff         → requires handoff if work is incomplete
 ```

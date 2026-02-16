@@ -105,3 +105,19 @@ If `.claude/hook-metrics.jsonl` exists, read it and include this section:
    - Check `settings.json` references match actual hook files on disk
 
 If the metrics file doesn't exist or is empty, note: "No hook metrics data yet. Metrics will accumulate as hooks fire during normal usage."
+
+### Simplification Experiments
+
+If `.claude/simplification-experiment.md` exists and its status is `active`:
+
+1. Read the experiment file to understand what was changed and the reversal criteria
+2. Analyze current `hook-metrics.jsonl` against the baseline metrics in the experiment
+3. For each reversal criterion, evaluate whether the trigger condition has been hit
+4. If past the evaluation date, recommend resolving the experiment (set status to `resolved` if no triggers hit)
+5. Report findings:
+
+| Criterion | Baseline | Current | Triggered? |
+|-----------|----------|---------|-----------|
+| [from experiment file] | [baseline value] | [current value] | Yes/No |
+
+**Verdict**: Continue experiment / Reinstate [specific hook] / Resolve (experiment passed)
