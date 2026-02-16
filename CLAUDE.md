@@ -137,8 +137,9 @@ Three workflows in `.github/workflows/`:
 - **`ci.yml`** — Runs `ruff check .` + `pytest` on every PR and push to main. Mirrors what `pre-commit-check.py` does locally. The `test` job is a required status check for merging.
 - **`claude-review.yml`** — Claude-powered code review on PRs (quality, bugs, best practices). Posts inline comments.
 - **`security-review.yml`** — Claude-powered security review on PRs (OWASP Top 10, secrets, injection). Posts inline comments.
+- **`claude.yml`** — Interactive Claude agent triggered by `@claude` mentions in issues, PR comments, and PR reviews.
 
-**Required secret**: `ANTHROPIC_API_KEY` must be set in GitHub repo settings (Settings → Secrets → Actions) for the Claude review workflows to function.
+**Required secret**: `CLAUDE_CODE_OAUTH_TOKEN` must be set in GitHub repo settings (Settings → Secrets → Actions) for the Claude workflows to function.
 
 ## Reference Documentation <!-- customizable -->
 
