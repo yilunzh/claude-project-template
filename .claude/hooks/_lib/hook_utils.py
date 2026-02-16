@@ -364,6 +364,48 @@ def write_step_counter(data: dict, project_dir: str | None = None) -> None:
         json.dump(data, f)
 
 
+# ---------- YAML state file helpers ----------
+
+STATE_FILE_REL = ".claude/feature-state.yaml"
+
+PHASE_ORDER = ["clarify", "plan", "implement", "verify", "polish"]
+
+
+def read_yaml_file(path: str) -> dict | None:
+    """Read a YAML file. Returns dict or None on error/missing."""
+    if not os.path.exists(path):
+        return None
+    try:
+        import yaml
+        with open(path) as f:
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return None
+
+
+def write_yaml_file(path: str, data: dict) -> None:
+    """Write data to a YAML file."""
+    import yaml
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+def read_feature_state(project_dir: str | None = None) -> dict | None:
+    """Read feature state file. Returns dict or None if missing."""
+    cwd = project_dir or get_project_dir()
+    path = os.path.join(cwd, STATE_FILE_REL)
+    return read_yaml_file(path)
+
+
+def phase_index(phase: str) -> int:
+    """Get numeric index for a phase. Returns -1 if unknown."""
+    try:
+        return PHASE_ORDER.index(phase)
+    except ValueError:
+        return -1
+
+
 # ---------- Metrics logging ----------
 
 def log_metric(

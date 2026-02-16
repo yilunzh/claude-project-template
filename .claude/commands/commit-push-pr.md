@@ -2,6 +2,13 @@
 
 Complete workflow from staged changes to PR creation.
 
+## Pre-flight Phase Check
+
+Before starting the workflow:
+1. Read `.claude/feature-state.yaml` (if it exists)
+2. If `phase` is not `polish`, stop and report: "Phase is `{phase}`. Update to `polish` before creating a PR. Edit `.claude/feature-state.yaml` and set `phase: polish`."
+3. If no state file exists, proceed normally.
+
 ## Steps
 
 1. Run `git status` to see all untracked and modified files

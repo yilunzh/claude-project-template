@@ -10,7 +10,14 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
-from hook_utils import detect_linter, detect_test_runner, get_current_branch, log_metric
+from hook_utils import (
+    detect_linter,
+    detect_test_runner,
+    get_current_branch,
+    log_metric,
+    phase_index,
+    read_feature_state,
+)
 
 
 def get_staged_file_count():
@@ -63,6 +70,25 @@ def check_secrets():
 
 def main():
     checks = []
+
+    # Check feature phase: block commit if phase < implement
+    state = read_feature_state()
+    if state is not None:
+        phase = state.get("phase", "")
+        if phase_index(phase) < phase_index("implement"):
+            log_metric(
+                "pre-commit-check", "run", "auto", "block",
+                f"phase is {phase}",
+            )
+            return {
+                "decision": "block",
+                "reason": (
+                    f"Phase is `{phase}`. Update to `implement` or later "
+                    "before committing.\n"
+                    "Edit `.claude/feature-state.yaml` and set "
+                    "`phase: implement`."
+                ),
+            }
 
     # Check for secrets in staged files
     secret_findings = check_secrets()
