@@ -16,6 +16,11 @@ Complete workflow from staged changes to PR creation.
    - Body with Summary bullets and Test Plan
    - Link to related issues if applicable
 
+## Important
+
+- **Never chain git commands with `&&`** — use separate Bash tool calls for each git command (add, commit, push). Chained commands bypass permission wildcards.
+- **Never use `git -C <path>`** — run git from the working directory directly.
+
 ## Commit Message Format
 
 ```
