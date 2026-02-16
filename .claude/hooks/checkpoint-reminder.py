@@ -45,14 +45,19 @@ def validate_checkpoint(file_path):
     ]
 
     if missing:
-        log_metric("checkpoint-reminder", "run", "auto", "advisory", f"missing: {', '.join(missing)}")
+        detail = f"missing: {', '.join(missing)}"
+        log_metric("checkpoint-reminder", "run", "auto", "advisory", detail)
         return (
             f"Checkpoint incomplete. Missing sections: {', '.join(missing)}. "
             "Required: Current goal, Decisions made, Files modified, What's next."
         )
 
     # Valid checkpoint — reset step counter
-    write_step_counter({"count": 0, "last_checkpoint": "session-context.md", "reset_reason": "valid checkpoint written"})
+    write_step_counter({
+        "count": 0,
+        "last_checkpoint": "session-context.md",
+        "reset_reason": "valid checkpoint written",
+    })
     log_metric("checkpoint-reminder", "run", "auto", "advisory", "validated and reset")
     return None  # No message needed — checkpoint is valid
 
