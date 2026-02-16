@@ -24,12 +24,15 @@ def check_python(project_dir):
             break
 
     if not venv_dir:
-        issues.append("No virtual environment found (.venv/ or venv/). Create one with: python -m venv .venv")
+        issues.append(
+            "No venv found (.venv/ or venv/). Create one: python -m venv .venv"
+        )
         return issues
 
     python_bin = os.path.join(venv_dir, "bin", "python")
     if not os.path.exists(python_bin):
-        issues.append(f"Virtual environment at {os.path.basename(venv_dir)}/ exists but has no python binary")
+        venv_name = os.path.basename(venv_dir)
+        issues.append(f"Venv at {venv_name}/ exists but has no python binary")
         return issues
 
     # Check Python version against requires-python
@@ -41,13 +44,20 @@ def check_python(project_dir):
                     if "requires-python" not in line:
                         continue
                     required = line.split("=", 1)[-1].strip().strip('"').strip("'")
-                    result = subprocess.run([python_bin, "--version"], capture_output=True, text=True)
+                    result = subprocess.run(
+                        [python_bin, "--version"],
+                        capture_output=True, text=True,
+                    )
                     if result.returncode == 0 and ">=" in required:
                         version = result.stdout.strip().replace("Python ", "")
                         req_ver = required.replace(">=", "").strip()
                         try:
-                            if tuple(int(x) for x in version.split(".")[:3]) < tuple(int(x) for x in req_ver.split(".")[:3]):
-                                issues.append(f"Python version: {version} (requires-python: {required})")
+                            ver = tuple(int(x) for x in version.split(".")[:3])
+                            req = tuple(int(x) for x in req_ver.split(".")[:3])
+                            if ver < req:
+                                issues.append(
+                                    f"Python {version} (needs {required})"
+                                )
                         except ValueError:
                             pass
                     break
@@ -83,7 +93,8 @@ def main():
         all_issues.extend(check_node(project_dir))
 
     if not all_issues:
-        log_metric("pre-flight-check", "run", "auto", "allow", f"no issues ({', '.join(project_types)})")
+        types = ", ".join(project_types)
+        log_metric("pre-flight-check", "run", "auto", "allow", f"ok ({types})")
         return {"continue": True}
 
     issue_list = "\n".join(f"  - {issue}" for issue in all_issues)

@@ -44,7 +44,12 @@ def check_triggers(transcript_content):
             return phrase
 
     # All-todos-complete heuristic
-    if content_lower.count("completed") > 2 and "pending" not in content_lower and "in_progress" not in content_lower:
+    all_done = (
+        content_lower.count("completed") > 2
+        and "pending" not in content_lower
+        and "in_progress" not in content_lower
+    )
+    if all_done:
         return "All todos completed"
 
     return None
@@ -56,14 +61,20 @@ def build_update_prompt(trigger_phrase):
 
     # Get changed files
     try:
-        result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, cwd=cwd)
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, cwd=cwd,
+        )
         changes = result.stdout.strip() if result.returncode == 0 else ""
     except Exception:
         changes = ""
 
     # Get diff summary
     try:
-        result = subprocess.run(["git", "diff", "--stat", "HEAD"], capture_output=True, text=True, cwd=cwd)
+        result = subprocess.run(
+            ["git", "diff", "--stat", "HEAD"],
+            capture_output=True, text=True, cwd=cwd,
+        )
         diff_summary = result.stdout.strip() if result.returncode == 0 else ""
     except Exception:
         diff_summary = ""
