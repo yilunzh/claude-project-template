@@ -131,7 +131,7 @@ def _is_file_candidate(candidate: dict[str, Any]) -> bool:
 
 def _is_new_file(candidate: dict[str, Any]) -> bool:
     """Check if candidate represents a new file (not in template-ref)."""
-    return candidate.get("change_type") == "new"
+    return candidate.get("change_type") == "new_file"
 
 
 def classify_candidate(candidate: dict[str, Any], terms: set[str]) -> dict[str, Any]:

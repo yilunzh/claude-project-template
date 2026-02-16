@@ -180,6 +180,21 @@ def _atomic_write_yaml(path: Path, data: dict) -> None:
         raise
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write text atomically using temp file + rename."""
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(tmp_path, str(path))
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 # --- Tools ---
 
 
@@ -237,7 +252,7 @@ def _atomic_write_yaml(path: Path, data: dict) -> None:
     required=["type", "summary", "scope"],
 )
 def capture_memory(
-    type: str,
+    type: str,  # noqa: A002 — MCP schema requires this parameter name
     summary: str,
     scope: str,
     detail: str = "",
@@ -265,10 +280,13 @@ def capture_memory(
     Returns:
         Confirmation message or error string.
     """
+    # Alias to avoid shadowing the builtin `type` function
+    memory_type = type
+
     # Validate type
-    if type not in VALID_MEMORY_TYPES:
+    if memory_type not in VALID_MEMORY_TYPES:
         return (
-            f"Error: Invalid type '{type}'. "
+            f"Error: Invalid type '{memory_type}'. "
             f"Must be one of: {', '.join(sorted(VALID_MEMORY_TYPES))}"
         )
 
@@ -299,7 +317,7 @@ def capture_memory(
     )
 
     # --- Deduplication check ---
-    dup_path, dup_entry, match_type = _find_duplicate(type, tables_list, summary)
+    dup_path, dup_entry, match_type = _find_duplicate(memory_type, tables_list, summary)
 
     if match_type == "duplicate" and dup_entry:
         # Reinforce existing memory instead of creating new
@@ -311,7 +329,7 @@ def capture_memory(
         # Supersede old memory, create new one
         old_id = dup_entry.get("id", "unknown")
         slug = _slugify(summary)
-        new_id = f"{type}-{slug}"
+        new_id = f"{memory_type}-{slug}"
         dup_entry["status"] = "superseded"
         dup_entry["superseded_by"] = new_id
         try:
@@ -322,10 +340,10 @@ def capture_memory(
 
     # Generate ID and filename
     slug = _slugify(summary)
-    memory_id = f"{type}-{slug}"
+    memory_id = f"{memory_type}-{slug}"
 
     # Determine target directory
-    target_dir = _type_to_dir(type)
+    target_dir = _type_to_dir(memory_type)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Find available filename
@@ -345,7 +363,7 @@ def capture_memory(
     today = date.today().isoformat()
     entry = {
         "id": memory_id,
-        "type": type,
+        "type": memory_type,
         "signal": signal or "explicit_correction",
         "summary": summary,
         "detail": detail or None,
@@ -372,7 +390,7 @@ def capture_memory(
         _atomic_write_yaml(filepath, entry)
 
         msg = (
-            f"Captured **{type}** to memory: `{summary}` "
+            f"Captured **{memory_type}** to memory: `{summary}` "
             f"(id: {memory_id}, file: {filepath.name})"
         )
         if match_type == "contradiction" and dup_entry:
@@ -1186,7 +1204,7 @@ def capture_reflection(
     lines.append("")
 
     try:
-        filepath.write_text("\n".join(lines))
+        _atomic_write_text(filepath, "\n".join(lines))
         return f"Captured reflection for `{investigation}` ({filepath.name})"
     except Exception as e:
         logger.error(f"Error writing reflection: {e}")
@@ -1238,7 +1256,7 @@ def _apply_change_to_file(
         try:
             existing = filepath.read_text()
             new_content = existing.rstrip() + "\n\n" + content + provenance
-            filepath.write_text(new_content)
+            _atomic_write_text(filepath, new_content)
             return True, f"Appended to `{filepath.name}`"
         except Exception as e:
             return False, f"Error writing file: {e}"
@@ -1301,7 +1319,7 @@ def _apply_change_to_file(
             if not found:
                 return False, f"Could not locate promoted content block for `{memory_id}`"
 
-            filepath.write_text("\n".join(new_lines))
+            _atomic_write_text(filepath, "\n".join(new_lines))
             return True, f"Removed promoted content from `{filepath.name}`"
 
         except Exception as e:
