@@ -222,6 +222,14 @@ def detect_project_type(project_dir: str | None = None) -> list[str]:
     return types
 
 
+def _resolve_venv_bin(cmd: str, project_dir: str) -> str:
+    """Resolve a command to a venv binary if a venv exists."""
+    venv_path = os.path.join(project_dir, ".venv", "bin", cmd)
+    if os.path.isfile(venv_path):
+        return venv_path
+    return cmd
+
+
 def detect_test_runner(project_dir: str | None = None) -> list[str] | None:
     """Detect test runner command based on project files.
 
@@ -249,18 +257,20 @@ def detect_test_runner(project_dir: str | None = None) -> list[str] | None:
     # Python projects
     if os.path.exists(os.path.join(cwd, "requirements.txt")) or \
        os.path.exists(os.path.join(cwd, "pyproject.toml")):
+        pytest_bin = _resolve_venv_bin("pytest", cwd)
         if os.path.exists(os.path.join(cwd, "pytest.ini")) or \
            os.path.exists(os.path.join(cwd, "conftest.py")):
-            return ["pytest", "-v", "--tb=short", "-q"]
+            return [pytest_bin, "-v", "--tb=short", "-q"]
         pyproject = os.path.join(cwd, "pyproject.toml")
         if os.path.exists(pyproject):
             try:
                 with open(pyproject) as f:
                     if "pytest" in f.read():
-                        return ["pytest", "-v", "--tb=short", "-q"]
+                        return [pytest_bin, "-v", "--tb=short", "-q"]
             except IOError:
                 pass
-        return ["python", "-m", "unittest", "discover"]
+        python_bin = _resolve_venv_bin("python", cwd)
+        return [python_bin, "-m", "unittest", "discover"]
 
     # Rust projects
     if os.path.exists(os.path.join(cwd, "Cargo.toml")):
@@ -291,12 +301,12 @@ def detect_linter(project_dir: str | None = None) -> list[str] | None:
         try:
             with open(pyproject) as f:
                 if "ruff" in f.read():
-                    return ["ruff", "check", "."]
+                    return [_resolve_venv_bin("ruff", cwd), "check", "."]
         except IOError:
             pass
     if os.path.exists(os.path.join(cwd, ".flake8")) or \
        os.path.exists(os.path.join(cwd, "setup.cfg")):
-        return ["flake8"]
+        return [_resolve_venv_bin("flake8", cwd)]
 
     # Rust linter
     if os.path.exists(os.path.join(cwd, "Cargo.toml")):
@@ -362,6 +372,48 @@ def write_step_counter(data: dict, project_dir: str | None = None) -> None:
 
     with open(counter_path, "w") as f:
         json.dump(data, f)
+
+
+# ---------- YAML state file helpers ----------
+
+STATE_FILE_REL = ".claude/feature-state.yaml"
+
+PHASE_ORDER = ["clarify", "plan", "implement", "verify", "polish"]
+
+
+def read_yaml_file(path: str) -> dict | None:
+    """Read a YAML file. Returns dict or None on error/missing."""
+    if not os.path.exists(path):
+        return None
+    try:
+        import yaml
+        with open(path) as f:
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return None
+
+
+def write_yaml_file(path: str, data: dict) -> None:
+    """Write data to a YAML file."""
+    import yaml
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+def read_feature_state(project_dir: str | None = None) -> dict | None:
+    """Read feature state file. Returns dict or None if missing."""
+    cwd = project_dir or get_project_dir()
+    path = os.path.join(cwd, STATE_FILE_REL)
+    return read_yaml_file(path)
+
+
+def phase_index(phase: str) -> int:
+    """Get numeric index for a phase. Returns -1 if unknown."""
+    try:
+        return PHASE_ORDER.index(phase)
+    except ValueError:
+        return -1
 
 
 # ---------- Metrics logging ----------

@@ -85,6 +85,8 @@ Thumbs.db
 .claude/harvest-queue.yaml
 .claude/.arch-review-state
 .claude/hook-metrics.jsonl
+.claude/plans/
+.claude/feature-state.yaml
 
 # Ideation project folders (template-internal design docs)
 # IDEATION_PROCESS.md is tracked; project-specific ideation is local-only

@@ -2,6 +2,13 @@
 
 Complete workflow from staged changes to PR creation.
 
+## Pre-flight Phase Check
+
+Before starting the workflow:
+1. Read `.claude/feature-state.yaml` (if it exists)
+2. If `phase` is not `polish`, stop and report: "Phase is `{phase}`. Update to `polish` before creating a PR. Edit `.claude/feature-state.yaml` and set `phase: polish`."
+3. If no state file exists, proceed normally.
+
 ## Steps
 
 1. Run `git status` to see all untracked and modified files
@@ -43,3 +50,7 @@ Types: feat, fix, refactor, test, docs, chore
 - [ ] Tests pass locally
 - [ ] Verified in browser/simulator (if UI)
 ```
+
+NOTE: GitHub Actions workflow files fail OIDC app-token exchange until identical content exists on default branch. First PR adding workflows will always fail review checks.
+
+<!-- Memory-promoted: 2026-02-16, source: pattern-github-actions-workflow-validation-new-or-modified-workflow-, evidence: 3x reinforced -->

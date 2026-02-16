@@ -15,6 +15,7 @@ from hook_utils import (
     checkpoint_recent,
     is_major_step,
     log_metric,
+    read_feature_state,
     read_json_stdin,
     read_step_counter,
     write_step_counter,
@@ -99,6 +100,14 @@ def main():
     # Remind at 3, 5, and every 3 thereafter
     step_count = counter["count"]
 
+    # Get current phase for inclusion in reminder messages
+    phase_info = ""
+    state = read_feature_state()
+    if state:
+        phase = state.get("phase", "")
+        if phase:
+            phase_info = f" Current feature phase: {phase}."
+
     if step_count == 3:
         log_metric("checkpoint-reminder", "run", "auto", "advisory", "3 steps reached")
         return {
@@ -106,7 +115,7 @@ def main():
             "message": (
                 "Checkpoint reminder: 3 major edits since last checkpoint. "
                 "Consider updating .claude/session-context.md with current goal, "
-                "decisions made, files modified, and next steps."
+                f"decisions made, files modified, and next steps.{phase_info}"
             ),
         }
     elif step_count == 5:
@@ -116,7 +125,8 @@ def main():
             "message": (
                 "Checkpoint due: 5 major edits without a checkpoint. "
                 "Please update .claude/session-context.md before continuing. "
-                "Required sections: Current goal, Decisions made, Files modified, What's next."
+                "Required sections: Current goal, Decisions made, Files modified, "
+                f"What's next.{phase_info}"
             ),
         }
     elif step_count > 5 and step_count % 3 == 0:
@@ -125,7 +135,7 @@ def main():
             "continue": True,
             "message": (
                 f"Checkpoint overdue ({step_count} steps). "
-                "Update .claude/session-context.md."
+                f"Update .claude/session-context.md.{phase_info}"
             ),
         }
 

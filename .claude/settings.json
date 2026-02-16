@@ -1,40 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git *)",
-      "Bash(gh *)",
-      "Bash(pytest:*)",
-      "Bash(python -m pytest:*)",
-      "Bash(.venv/bin/python3:*)",
-      "Bash(PYTHONPATH=src .venv/bin/python3:*)",
-      "Bash(.venv/bin/pip:*)",
-      "Bash(.venv/bin/ruff:*)",
-      "Bash(pip install:*)",
-      "Bash(pip install -r:*)",
-      "Bash(rsync:*)",
-      "Bash(ls:*)",
-      "Bash(mkdir:*)",
-      "Bash(cp:*)",
-      "Bash(mv:*)",
-      "Bash(rm *.pyc)",
-      "Bash(source venv/bin/activate:*)",
-      "Bash(lsof -i:*)",
-      "Bash(touch .playwright-verified:*)",
-      "Bash(date:*)",
-      "Bash(which:*)",
-      "Bash(command -v:*)",
-      "Bash(wc:*)",
-      "Bash(echo:*)",
-      "Bash(head:*)",
-      "Bash(tail:*)",
-      "Bash(tee:*)",
-      "Bash(test:*)",
-      "Bash(grep:*)",
-      "Bash(find:*)",
-      "Bash(python3:*)",
-      "Bash(ruff:*)",
-      "Bash(PYTHONPATH=src .venv/bin/pytest:*)",
-      "Bash(CLAUDE_PROJECT_DIR=*)",
+      "Bash(*)",
       "WebSearch",
       "WebFetch"
     ]
@@ -74,6 +41,11 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR/.venv/bin/python3\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/branch-check.py\"",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "GATE_CHECK_MODE=pre_write \"$CLAUDE_PROJECT_DIR/.venv/bin/python3\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/gate-check.py\"",
+            "timeout": 5000
           }
         ]
       }
@@ -85,6 +57,16 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR/.venv/bin/python3\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/checkpoint-reminder.py\"",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GATE_CHECK_MODE=post_bash \"$CLAUDE_PROJECT_DIR/.venv/bin/python3\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/gate-check.py\"",
             "timeout": 5000
           }
         ]
@@ -106,6 +88,15 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR/.venv/bin/python3\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-flight-check.py\"",
             "timeout": 15000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "GATE_CHECK_MODE=prompt \"$CLAUDE_PROJECT_DIR/.venv/bin/python3\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/gate-check.py\"",
+            "timeout": 5000
           }
         ]
       }

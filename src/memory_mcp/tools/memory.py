@@ -1131,6 +1131,20 @@ def learning_review(investigation: str = "") -> str:
             "type": "string",
             "description": "Key takeaway or proposed behavioral change (optional)",
         },
+        "root_causes": {
+            "type": "string",
+            "description": (
+                "Pipe-separated root cause analyses from 5 Whys. "
+                "Each entry: 'issue → why1 → why2 → root cause' (optional)"
+            ),
+        },
+        "behavioral_changes": {
+            "type": "string",
+            "description": (
+                "Pipe-separated specific behavioral changes to adopt. "
+                "Each should be concrete and actionable (optional)"
+            ),
+        },
     },
     required=["investigation", "went_well", "could_improve"],
 )
@@ -1140,6 +1154,8 @@ def capture_reflection(
     could_improve: str,
     domain: str = "",
     proposed_learning: str = "",
+    root_causes: str = "",
+    behavioral_changes: str = "",
 ) -> str:
     """Write a structured session reflection to memory.
 
@@ -1149,6 +1165,8 @@ def capture_reflection(
         could_improve: Comma-separated list of improvements.
         domain: Optional data domain.
         proposed_learning: Optional key takeaway.
+        root_causes: Pipe-separated root cause chains (issue → why → root cause).
+        behavioral_changes: Pipe-separated specific behavioral changes.
 
     Returns:
         Confirmation with file path.
@@ -1195,6 +1213,28 @@ def capture_reflection(
     lines.append("## What Could Improve")
     for item in improve_items:
         lines.append(f"- {item}")
+
+    # Parse and render root cause chains
+    if root_causes:
+        cause_chains = [c.strip() for c in root_causes.split("|") if c.strip()]
+        if cause_chains:
+            lines.append("")
+            lines.append("## Root Cause Analysis")
+            for chain in cause_chains:
+                steps = [s.strip() for s in chain.split("→")]
+                if steps:
+                    lines.append(f"- {steps[0]}")
+                    for step in steps[1:]:
+                        lines.append(f"  - → {step}")
+
+    # Render behavioral changes
+    if behavioral_changes:
+        changes = [c.strip() for c in behavioral_changes.split("|") if c.strip()]
+        if changes:
+            lines.append("")
+            lines.append("## Behavioral Changes")
+            for change in changes:
+                lines.append(f"- {change}")
 
     if proposed_learning:
         lines.append("")

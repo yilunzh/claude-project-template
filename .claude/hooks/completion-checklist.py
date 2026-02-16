@@ -13,7 +13,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
-from hook_utils import log_metric
+from hook_utils import log_metric, phase_index, read_feature_state
 
 # Patterns that indicate a test runner was actually *invoked* as a tool command.
 TEST_INVOCATION_PATTERNS = [
@@ -108,6 +108,31 @@ def main():
         }
 
     transcript_lower = transcript.lower()
+
+    # Check feature phase: block if phase < verify and commits in session
+    state = read_feature_state()
+    if state is not None:
+        phase = state.get("phase", "")
+        if phase_index(phase) < phase_index("verify"):
+            # Check if commits happened in this session
+            commit_patterns = [r"\bgit\s+commit\b"]
+            has_commits = any(
+                re.search(p, transcript_lower) for p in commit_patterns
+            )
+            if has_commits:
+                log_metric(
+                    "completion-checklist", "run", "auto", "block",
+                    f"phase {phase} with commits",
+                )
+                return {
+                    "continue": False,
+                    "stopReason": (
+                        f"Code was committed but phase is `{phase}`. "
+                        "Update to `verify` or later before ending session.\n"
+                        "Edit `.claude/feature-state.yaml` and set "
+                        "`phase: verify`."
+                    ),
+                }
 
     # Check for test/lint invocation patterns
     if not _check_verification_ran(transcript_lower):

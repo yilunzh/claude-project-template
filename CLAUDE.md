@@ -150,11 +150,12 @@ Three workflows in `.github/workflows/`:
 ## Hooks <!-- template-managed -->
 
 Custom hooks are in `.claude/hooks/`:
-- `pre-commit-check.py` - **Blocking**: Runs tests + lint; blocks direct commits to main
+- `gate-check.py` - **Mixed**: Feature state machine — auto-creates state file on feature branches (advisory), blocks code writes when phase < implement (blocking), suggests phase transitions during work (advisory), enforces transition gates (blocking)
+- `pre-commit-check.py` - **Blocking**: Runs tests + lint; blocks direct commits to main; blocks commits when phase < implement
 - `branch-check.py` - **Blocking**: Prevents edits on main branch
 - `uncommitted-changes-check.py` - **Advisory**: Warns about uncommitted changes at session start (runs on first user prompt)
-- `checkpoint-reminder.py` - **Advisory**: Reminds to checkpoint every 3-5 edits; validates checkpoint sections and resets step counter when `session-context.md` is written
-- `completion-checklist.py` - **Blocking**: Ensures tests were run before session ends
+- `checkpoint-reminder.py` - **Advisory**: Reminds to checkpoint every 3-5 edits; validates checkpoint sections and resets step counter when `session-context.md` is written; shows current feature phase
+- `completion-checklist.py` - **Blocking**: Ensures tests were run before session ends; blocks if phase < verify with commits
 - `session-handoff.py` - **Blocking**: Detects incomplete work, requires handoff
 - `spec-update-check.py` - Triggers SPEC.md updates on key phrases
 - `self-review-reminder.py` - **Advisory**: Reminds to run `/self-review` (5+ files changed) and `/arch-review` (new modules, cross-cutting changes, large files)
