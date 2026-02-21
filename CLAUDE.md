@@ -150,7 +150,7 @@ Three workflows in `.github/workflows/`:
 ## Hooks <!-- template-managed -->
 
 Custom hooks are in `.claude/hooks/`:
-- `gate-check.py` - **Mixed**: Feature state machine — auto-creates state file on feature branches (advisory), blocks code writes when phase < implement (blocking), suggests phase transitions during work (advisory), enforces transition gates (blocking)
+- `gate-check.py` - **Mixed**: Feature state machine — auto-creates state file on feature branches (advisory), blocks code writes when phase < implement (blocking), suggests phase transitions during work (advisory), enforces transition gates (blocking), auto-transitions phases when conditions are met (plan→implement on progress file, implement→verify when all stories complete)
 - `pre-commit-check.py` - **Blocking**: Runs tests + lint; blocks direct commits to main; blocks commits when phase < implement
 - `branch-check.py` - **Blocking**: Prevents edits on main branch
 - `uncommitted-changes-check.py` - **Advisory**: Warns about uncommitted changes at session start (runs on first user prompt)
@@ -179,6 +179,7 @@ Custom slash commands are in `.claude/commands/`. See `example.md` for the forma
 | `/harvest-learnings` | When harvest candidates exist | Extracts and classifies learnings for cross-project promotion |
 | `/web-verify` | After UI changes | Playwright verification of web routes |
 | `/sync-templates` | Discovered workflow improvements | Analyzes project for improvements to propagate to templates |
+| `/autonomous-implement` | After ideation is complete | Reads implementation plan, implements stories, tests, verifies, creates PR |
 
 ## Agent Memory <!-- template-managed -->
 
