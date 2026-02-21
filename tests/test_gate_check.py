@@ -982,3 +982,382 @@ class TestHelpers:
 
         with patch.dict(os.environ, mock_env, clear=False):
             assert gate_check.last_pytest_passed(str(tmp_project)) is True
+
+
+# ── Auto-transition tests ──────────────────────────────────────────────
+
+
+class TestAutoTransition:
+    """Test automatic phase transitions."""
+
+    def test_plan_to_implement_on_progress_file(
+        self, tmp_project, mock_env, state_file
+    ):
+        """Auto-transition from plan to implement when progress file exists."""
+        state_file(phase="plan")
+        # Create progress file
+        progress = tmp_project / ".claude" / "implementation-progress.md"
+        progress.write_text(
+            "# Implementation Progress\n"
+            "## Source: .claude/ideation/test/implementation-plan.md\n"
+            "## Started: 2026-02-21\n"
+            "## Current Phase: Phase 1\n\n"
+            "## Remaining\n"
+            "- [ ] E1.S1 — Setup\n"
+        )
+
+        env = {**mock_env, "GATE_CHECK_MODE": "prompt"}
+        with (
+            patch.dict(os.environ, env, clear=False),
+            patch.object(
+                gate_check, "get_current_branch",
+                return_value="feature/test",
+            ),
+        ):
+            result = gate_check.main()
+
+        msg = result.get("message", "")
+        assert "plan \u2192 implement" in msg
+
+        # Verify state file was updated
+        import yaml
+
+        state_path = tmp_project / ".claude" / "feature-state.yaml"
+        with open(state_path) as f:
+            state = yaml.safe_load(f)
+        assert state["phase"] == "implement"
+
+    def test_implement_to_verify_all_complete(
+        self, tmp_project, mock_env, state_file
+    ):
+        """Auto-transition from implement to verify when all stories done."""
+        state_file(phase="implement")
+        # Create progress file with all complete
+        progress = tmp_project / ".claude" / "implementation-progress.md"
+        progress.write_text(
+            "# Implementation Progress\n"
+            "## Source: test\n"
+            "## Started: 2026-02-21\n"
+            "## Current Phase: Phase 1\n\n"
+            "## Completed\n"
+            "- [x] E1.S1 — Setup\n"
+            "- [x] E1.S2 — Core\n\n"
+            "## In Progress\n"
+            "(none yet)\n\n"
+            "## Remaining\n"
+            "(none)\n\n"
+            "## Blockers\n"
+            "(none)\n"
+        )
+        # Create test files (required for transition)
+        tests_dir = tmp_project / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_something.py").write_text("def test_it(): pass\n")
+
+        env = {**mock_env, "GATE_CHECK_MODE": "post_bash"}
+        stdin_data = {
+            "tool_name": "Bash",
+            "tool_input": {"command": "pytest -v"},
+            "tool_result": "2 passed in 0.5s",
+        }
+        with (
+            patch.dict(os.environ, env, clear=False),
+            patch("sys.stdin", _stdin_json(stdin_data)),
+        ):
+            result = gate_check.main()
+
+        msg = result.get("message", "")
+        assert "implement \u2192 verify" in msg
+
+        import yaml
+
+        state_path = tmp_project / ".claude" / "feature-state.yaml"
+        with open(state_path) as f:
+            state = yaml.safe_load(f)
+        assert state["phase"] == "verify"
+
+    def test_no_transition_when_stories_remaining(
+        self, tmp_project, mock_env, state_file
+    ):
+        """No auto-transition when stories are still remaining."""
+        state_file(phase="implement")
+        progress = tmp_project / ".claude" / "implementation-progress.md"
+        progress.write_text(
+            "# Implementation Progress\n"
+            "## Source: test\n"
+            "## Started: 2026-02-21\n"
+            "## Current Phase: Phase 1\n\n"
+            "## Completed\n"
+            "- [x] E1.S1 — Setup\n\n"
+            "## In Progress\n"
+            "(none)\n\n"
+            "## Remaining\n"
+            "- [ ] E1.S2 — Core\n\n"
+            "## Blockers\n"
+            "(none)\n"
+        )
+        tests_dir = tmp_project / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_something.py").write_text("def test_it(): pass\n")
+
+        env = {**mock_env, "GATE_CHECK_MODE": "prompt"}
+        with (
+            patch.dict(os.environ, env, clear=False),
+            patch.object(
+                gate_check, "get_current_branch",
+                return_value="feature/test",
+            ),
+        ):
+            result = gate_check.main()
+
+        msg = result.get("message", "")
+        assert "auto-transition" not in msg.lower()
+
+    def test_no_transition_without_test_files(
+        self, tmp_project, mock_env, state_file
+    ):
+        """No implement\u2192verify transition without test files."""
+        state_file(phase="implement")
+        progress = tmp_project / ".claude" / "implementation-progress.md"
+        progress.write_text(
+            "# Implementation Progress\n"
+            "## Source: test\n"
+            "## Started: 2026-02-21\n"
+            "## Current Phase: Phase 1\n\n"
+            "## Completed\n"
+            "- [x] E1.S1 — Setup\n\n"
+            "## In Progress\n"
+            "(none)\n\n"
+            "## Remaining\n"
+            "(none)\n\n"
+            "## Blockers\n"
+            "(none)\n"
+        )
+        # No test files
+
+        env = {**mock_env, "GATE_CHECK_MODE": "prompt"}
+        with (
+            patch.dict(os.environ, env, clear=False),
+            patch.object(
+                gate_check, "get_current_branch",
+                return_value="feature/test",
+            ),
+        ):
+            result = gate_check.main()
+
+        msg = result.get("message", "")
+        assert "auto-transition" not in msg.lower()
+
+    def test_auto_transition_disabled(
+        self, tmp_project, mock_env, state_file
+    ):
+        """No auto-transition when auto_transitions_enabled is false."""
+        import yaml
+
+        state_file(phase="plan")
+        state_path = tmp_project / ".claude" / "feature-state.yaml"
+        with open(state_path) as f:
+            state = yaml.safe_load(f)
+        state["auto_transitions_enabled"] = False
+        with open(state_path, "w") as f:
+            yaml.dump(state, f, default_flow_style=False, sort_keys=False)
+
+        progress = tmp_project / ".claude" / "implementation-progress.md"
+        progress.write_text("# Implementation Progress\n## Remaining\n- [ ] E1.S1 \u2014 Setup\n")
+
+        env = {**mock_env, "GATE_CHECK_MODE": "prompt"}
+        with (
+            patch.dict(os.environ, env, clear=False),
+            patch.object(
+                gate_check, "get_current_branch",
+                return_value="feature/test",
+            ),
+        ):
+            result = gate_check.main()
+
+        msg = result.get("message", "")
+        assert "auto-transition" not in msg.lower()
+
+    def test_auto_transition_logged_to_metrics(
+        self, tmp_project, mock_env, state_file
+    ):
+        """Auto-transitions are logged to hook-metrics.jsonl."""
+        state_file(phase="plan")
+        progress = tmp_project / ".claude" / "implementation-progress.md"
+        progress.write_text("# Implementation Progress\n## Remaining\n- [ ] E1.S1 \u2014 Setup\n")
+
+        env = {**mock_env, "GATE_CHECK_MODE": "prompt"}
+        with (
+            patch.dict(os.environ, env, clear=False),
+            patch.object(
+                gate_check, "get_current_branch",
+                return_value="feature/test",
+            ),
+        ):
+            gate_check.main()
+
+        metrics_path = tmp_project / ".claude" / "hook-metrics.jsonl"
+        assert metrics_path.exists()
+        lines = metrics_path.read_text().strip().split("\n")
+        auto_entries = [
+            json.loads(line) for line in lines
+            if "auto_transition" in line
+        ]
+        assert len(auto_entries) >= 1
+        assert auto_entries[0]["event"] == "auto_transition"
+        assert "plan -> implement" in auto_entries[0].get("detail", "")
+
+
+# ── Acceptance criteria engine tests ────────────────────────────────────
+
+
+class TestProgressFileParsing:
+    """Test parse_progress_file from hook_utils."""
+
+    def test_empty_project(self, tmp_project, mock_env):
+        """Returns zeros when no progress file exists."""
+        from hook_utils import parse_progress_file
+
+        with patch.dict(os.environ, mock_env, clear=False):
+            result = parse_progress_file(str(tmp_project))
+        assert result["total_stories"] == 0
+        assert result["completed"] == 0
+        assert result["remaining"] == 0
+
+    def test_parses_mixed_progress(self, tmp_project, mock_env):
+        """Correctly parses a progress file with mixed states."""
+        from hook_utils import parse_progress_file
+
+        progress = tmp_project / ".claude" / "implementation-progress.md"
+        progress.write_text(
+            "# Implementation Progress\n"
+            "## Source: .claude/ideation/test/implementation-plan.md\n"
+            "## Started: 2026-02-21T10:00:00Z\n"
+            "## Current Phase: Phase 2 \u2014 Intelligence\n\n"
+            "## Completed\n"
+            "- [x] E1.S1 \u2014 Project setup\n"
+            "- [x] E1.S2 \u2014 Database schema\n\n"
+            "## In Progress\n"
+            "- [ ] E2.S1 \u2014 API endpoints\n\n"
+            "## Remaining\n"
+            "- [ ] E2.S2 \u2014 Frontend components\n"
+            "- [ ] E3.S1 \u2014 Integration tests\n\n"
+            "## Blockers\n"
+            "- E2.S2: waiting for API design\n"
+        )
+
+        with patch.dict(os.environ, mock_env, clear=False):
+            result = parse_progress_file(str(tmp_project))
+
+        assert result["completed"] == 2
+        assert result["in_progress"] == ["E2.S1"]
+        assert result["remaining"] == 2
+        assert result["remaining_list"] == ["E2.S2", "E3.S1"]
+        assert result["blocked"] == 1
+        assert result["total_stories"] == 5
+        assert result["source"] == ".claude/ideation/test/implementation-plan.md"
+        assert "Phase 2" in result["current_phase"]
+
+    def test_all_complete(self, tmp_project, mock_env):
+        """Correctly identifies all-complete state."""
+        from hook_utils import parse_progress_file
+
+        progress = tmp_project / ".claude" / "implementation-progress.md"
+        progress.write_text(
+            "# Implementation Progress\n"
+            "## Source: test\n"
+            "## Started: 2026-02-21\n"
+            "## Current Phase: Done\n\n"
+            "## Completed\n"
+            "- [x] E1.S1 \u2014 Setup\n"
+            "- [x] E1.S2 \u2014 Core\n"
+            "- [x] E2.S1 \u2014 Tests\n\n"
+            "## In Progress\n\n"
+            "## Remaining\n\n"
+            "## Blockers\n"
+        )
+
+        with patch.dict(os.environ, mock_env, clear=False):
+            result = parse_progress_file(str(tmp_project))
+
+        assert result["completed"] == 3
+        assert result["remaining"] == 0
+        assert result["in_progress"] == []
+        assert result["total_stories"] == 3
+
+
+class TestDodParsing:
+    """Test parse_dod_checks from hook_utils."""
+
+    def test_empty_file(self, tmp_project):
+        """Returns empty list when no DoD section."""
+        from hook_utils import parse_dod_checks
+
+        plan = tmp_project / "plan.md"
+        plan.write_text("# Plan\n\nSome content without DoD\n")
+        result = parse_dod_checks(str(plan))
+        assert result == []
+
+    def test_parses_command_checks(self, tmp_project):
+        """Detects backtick commands in DoD."""
+        from hook_utils import parse_dod_checks
+
+        plan = tmp_project / "plan.md"
+        plan.write_text(
+            "# Plan\n\n"
+            "## Definition of Done\n"
+            "- `ruff check .` passes\n"
+            "- `pytest` passes\n"
+            "- All tests pass\n"
+            "- config.yaml exists\n"
+        )
+        result = parse_dod_checks(str(plan))
+
+        assert len(result) == 4
+        assert result[0]["type"] == "command"
+        assert result[0]["cmd"] == "ruff check ."
+        assert result[1]["type"] == "command"
+        assert result[1]["cmd"] == "pytest"
+        assert result[2]["type"] == "test"
+        assert result[3]["type"] == "file_exists"
+        assert result[3]["pattern"] == "config.yaml"
+
+    def test_parses_verification_heading(self, tmp_project):
+        """Also matches 'Verification' as heading name."""
+        from hook_utils import parse_dod_checks
+
+        plan = tmp_project / "plan.md"
+        plan.write_text(
+            "# Plan\n\n"
+            "## Verification\n"
+            "- All tests pass\n"
+            "- `npm test` passes\n"
+        )
+        result = parse_dod_checks(str(plan))
+        assert len(result) == 2
+        assert result[0]["type"] == "test"
+        assert result[1]["type"] == "command"
+
+    def test_file_existence_check(self, tmp_project):
+        """Detects file existence checks."""
+        from hook_utils import parse_dod_checks
+
+        plan = tmp_project / "plan.md"
+        plan.write_text(
+            "# Plan\n\n"
+            "## Definition of Done\n"
+            "- README.md exists\n"
+            "- config.yaml present\n"
+        )
+        result = parse_dod_checks(str(plan))
+        assert result[0]["type"] == "file_exists"
+        assert result[0]["pattern"] == "README.md"
+        assert result[1]["type"] == "file_exists"
+        assert result[1]["pattern"] == "config.yaml"
+
+    def test_nonexistent_file(self):
+        """Returns empty list for missing file."""
+        from hook_utils import parse_dod_checks
+
+        result = parse_dod_checks("/nonexistent/path.md")
+        assert result == []

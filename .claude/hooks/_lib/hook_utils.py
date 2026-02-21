@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timedelta
@@ -379,6 +380,163 @@ def write_step_counter(data: dict, project_dir: str | None = None) -> None:
 STATE_FILE_REL = ".claude/feature-state.yaml"
 
 PHASE_ORDER = ["clarify", "plan", "implement", "verify", "polish"]
+
+PROGRESS_FILE_REL = ".claude/implementation-progress.md"
+
+
+def parse_progress_file(project_dir: str | None = None) -> dict:
+    """Parse implementation progress file for story completion status.
+
+    Returns dict with:
+        total_stories: int
+        completed: int
+        remaining: int
+        blocked: int
+        remaining_list: list[str]  — story IDs still incomplete
+        blocker_list: list[str]    — blocker descriptions
+        in_progress: list[str]     — story IDs currently in progress
+        current_phase: str         — current phase name from progress file
+        source: str                — path to the implementation plan
+    """
+    cwd = project_dir or get_project_dir()
+    path = os.path.join(cwd, PROGRESS_FILE_REL)
+
+    result = {
+        "total_stories": 0,
+        "completed": 0,
+        "remaining": 0,
+        "blocked": 0,
+        "remaining_list": [],
+        "blocker_list": [],
+        "in_progress": [],
+        "current_phase": "",
+        "source": "",
+    }
+
+    if not os.path.exists(path):
+        return result
+
+    try:
+        with open(path) as f:
+            content = f.read()
+    except IOError:
+        return result
+
+    # Extract source
+    source_match = re.search(r"^## Source:\s*(.+)$", content, re.MULTILINE)
+    if source_match:
+        result["source"] = source_match.group(1).strip()
+
+    # Extract current phase
+    phase_match = re.search(r"^## Current Phase:\s*(.+)$", content, re.MULTILINE)
+    if phase_match:
+        result["current_phase"] = phase_match.group(1).strip()
+
+    # Split into sections
+    section_pat = r"^## (?=Completed|In Progress|Remaining|Blockers)"
+    sections = re.split(section_pat, content, flags=re.MULTILINE)
+
+    for section in sections:
+        # Count completed stories (lines starting with "- [x]")
+        if section.startswith("Completed"):
+            completed = re.findall(r"^- \[x\]\s+(\S+)", section, re.MULTILINE)
+            result["completed"] = len(completed)
+
+        # Count in-progress stories
+        elif section.startswith("In Progress"):
+            in_progress = re.findall(r"^- \[ \]\s+(\S+)", section, re.MULTILINE)
+            result["in_progress"] = in_progress
+
+        # Count remaining stories
+        elif section.startswith("Remaining"):
+            remaining = re.findall(r"^- \[ \]\s+(\S+)", section, re.MULTILINE)
+            result["remaining_list"] = remaining
+            result["remaining"] = len(remaining)
+
+        # Extract blockers
+        elif section.startswith("Blockers"):
+            blockers = re.findall(r"^- (.+)$", section, re.MULTILINE)
+            result["blocker_list"] = blockers
+            result["blocked"] = len(blockers)
+
+    result["total_stories"] = (
+        result["completed"] + result["remaining"] + len(result["in_progress"])
+    )
+
+    return result
+
+
+def parse_dod_checks(plan_path: str) -> list[dict]:
+    """Parse Definition of Done section from an implementation plan.
+
+    Extracts verifiable checks from the DoD section:
+    - Backtick-wrapped commands → {"type": "command", "cmd": "...", "label": "..."}
+    - File existence checks → {"type": "file_exists", "pattern": "...", "label": "..."}
+    - Test assertions → {"type": "test", "label": "..."}
+    - Other items → {"type": "manual", "label": "..."}
+
+    Returns list of check dicts.
+    """
+    if not os.path.exists(plan_path):
+        return []
+
+    try:
+        with open(plan_path) as f:
+            content = f.read()
+    except IOError:
+        return []
+
+    # Find Definition of Done section
+    dod_match = re.search(
+        r"(?:^#+\s*Definition of Done|^#+\s*Verification|^#+\s*DoD)\s*\n(.*?)(?=^#|\Z)",
+        content,
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
+    )
+    if not dod_match:
+        return []
+
+    dod_text = dod_match.group(1)
+    checks = []
+
+    for line in dod_text.split("\n"):
+        stripped = line.strip().lstrip("- ").lstrip("* ").strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        # Remove checkbox prefix
+        stripped = re.sub(r"^\[[ x]\]\s*", "", stripped)
+        if not stripped:
+            continue
+
+        # Detect backtick commands
+        cmd_pat = r"`([^`]+)`\s*(?:passes|succeeds|works|runs)"
+        cmd_match = re.search(cmd_pat, stripped, re.IGNORECASE)
+        if cmd_match:
+            checks.append({
+                "type": "command",
+                "cmd": cmd_match.group(1),
+                "label": stripped,
+            })
+            continue
+
+        # Detect "all tests pass" patterns
+        if re.search(r"\b(?:all\s+)?tests?\s+pass", stripped, re.IGNORECASE):
+            checks.append({"type": "test", "label": stripped})
+            continue
+
+        # Detect file existence patterns
+        file_match = re.search(r"(\S+\.\w+)\s+(?:exists?|present|created)", stripped, re.IGNORECASE)
+        if file_match:
+            checks.append({
+                "type": "file_exists",
+                "pattern": file_match.group(1),
+                "label": stripped,
+            })
+            continue
+
+        # Everything else is manual
+        checks.append({"type": "manual", "label": stripped})
+
+    return checks
 
 
 def read_yaml_file(path: str) -> dict | None:

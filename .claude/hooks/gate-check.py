@@ -19,9 +19,11 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_lib"))
 from hook_utils import (
     PHASE_ORDER,
+    PROGRESS_FILE_REL,
     STATE_FILE_REL,
     get_current_branch,
     log_metric,
+    parse_progress_file,
     phase_index,
     read_feature_state,
     read_json_stdin,
@@ -396,6 +398,67 @@ def handle_post_bash():
     return {"continue": True}
 
 
+# ── Auto-transition logic ──────────────────────────────────────────────
+
+
+def _check_auto_transition(project_dir=None):
+    """Check conditions for automatic phase transitions.
+
+    Auto-transitions only go forward. Returns a message string if a
+    transition occurred, or None.
+
+    Transitions:
+      plan → implement: progress file exists + phase set in state
+      implement → verify: all stories complete in progress file + test files exist
+    """
+    cwd = project_dir or get_project_dir()
+    state = read_feature_state(cwd)
+    if state is None:
+        return None
+
+    # Check if auto-transitions are enabled (default: True)
+    if not state.get("auto_transitions_enabled", True):
+        return None
+
+    current_phase = state.get("phase", "")
+
+    # plan → implement: progress file exists
+    if current_phase == "plan":
+        progress_path = os.path.join(cwd, PROGRESS_FILE_REL)
+        if os.path.exists(progress_path):
+            _do_auto_transition(state, "plan", "implement", cwd)
+            return "Auto-transition: plan → implement (progress file detected)"
+
+    # implement → verify: all stories complete + test files exist
+    if current_phase == "implement":
+        progress = parse_progress_file(cwd)
+        if (
+            progress["total_stories"] > 0
+            and progress["remaining"] == 0
+            and len(progress["in_progress"]) == 0
+            and test_files_exist(cwd)
+        ):
+            _do_auto_transition(state, "implement", "verify", cwd)
+            return "Auto-transition: implement → verify (all stories complete, tests exist)"
+
+    return None
+
+
+def _do_auto_transition(state, from_phase, to_phase, project_dir):
+    """Perform an auto-transition: update state file and log."""
+    now = now_iso()
+    state["phase"] = to_phase
+    state["phase_entered_at"] = now
+    state["last_updated"] = now
+    path = os.path.join(project_dir, STATE_FILE_REL)
+    write_yaml_file(path, state)
+    log_metric(
+        "gate-check", "auto_transition", "auto", "advisory",
+        f"{from_phase} -> {to_phase}",
+        project_dir=project_dir,
+    )
+
+
 # ── Entrypoint ──────────────────────────────────────────────────────────
 
 
@@ -403,11 +466,24 @@ def main():
     mode = os.environ.get("GATE_CHECK_MODE", "")
 
     if mode == "prompt":
-        return handle_user_prompt()
+        result = handle_user_prompt()
+        # Check for auto-transitions on each prompt
+        transition_msg = _check_auto_transition()
+        if transition_msg and result.get("message"):
+            result["message"] += "\n" + transition_msg
+        elif transition_msg:
+            result["message"] = transition_msg
+        return result
     elif mode == "pre_write":
         return handle_pre_write()
     elif mode == "post_bash":
-        return handle_post_bash()
+        result = handle_post_bash()
+        # Check for auto-transitions after bash (e.g., after test runs)
+        transition_msg = _check_auto_transition()
+        if transition_msg:
+            existing = result.get("message", "")
+            result["message"] = (existing + "\n" + transition_msg).strip()
+        return result
     else:
         return {"decision": "allow"}
 
