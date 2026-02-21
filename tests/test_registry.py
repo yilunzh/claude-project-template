@@ -56,10 +56,10 @@ class TestRegisterTool:
                 f"Tool {name}: required {required - prop_names} not in properties"
             )
 
-    def test_get_registered_tools_returns_all_seven(self):
-        """Should have exactly 7 tools registered."""
+    def test_get_registered_tools_returns_all(self):
+        """Should have exactly 8 tools registered."""
         registry = get_registered_tools()
-        assert len(registry) == 7
+        assert len(registry) == 8
 
     def test_tool_names_match_expected(self):
         """Registry should contain exactly the expected tool names."""
@@ -68,6 +68,7 @@ class TestRegisterTool:
             "capture_memory",
             "load_relevant_memories",
             "reinforce_memory",
+            "track_outcome",
             "learning_review",
             "capture_reflection",
             "apply_proposal",
