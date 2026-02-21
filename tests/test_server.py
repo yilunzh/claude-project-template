@@ -9,6 +9,7 @@ EXPECTED_TOOL_NAMES = {
     "capture_memory",
     "load_relevant_memories",
     "reinforce_memory",
+    "track_outcome",
     "learning_review",
     "capture_reflection",
     "apply_proposal",
@@ -24,8 +25,8 @@ class TestBuildTools:
         assert tool_names == EXPECTED_TOOL_NAMES
 
     def test_build_tools_count(self):
-        """TOOLS module-level list should have 7 entries."""
-        assert len(TOOLS) == 7
+        """TOOLS module-level list should have 8 entries."""
+        assert len(TOOLS) == 8
 
     def test_build_tools_have_descriptions(self):
         """Every tool should have a non-empty description."""

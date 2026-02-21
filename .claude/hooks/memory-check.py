@@ -101,6 +101,33 @@ def find_harvest_candidates():
     return candidates[:2]
 
 
+def check_outcome_tracking():
+    """Check if PR activity occurred without track_outcome() calls.
+
+    Scans CLAUDE_TRANSCRIPT for PR merge/revert activity and checks
+    whether track_outcome was also called. Returns a reminder message
+    if PR activity was found but no outcome tracking.
+    """
+    transcript = os.environ.get("CLAUDE_TRANSCRIPT", "")
+    if not transcript:
+        return None
+
+    pr_patterns = ["gh pr merge", "merged pr", "pull request merged", "pr was merged"]
+    outcome_pattern = "track_outcome"
+
+    has_pr_activity = any(p in transcript.lower() for p in pr_patterns)
+    has_outcome_tracking = outcome_pattern in transcript.lower()
+
+    if has_pr_activity and not has_outcome_tracking:
+        return (
+            "PR activity detected but no outcome tracking. "
+            "Consider calling track_outcome() to record the result "
+            "(merged, reverted, etc.) for related memories."
+        )
+
+    return None
+
+
 def main():
     messages = []
 
@@ -125,7 +152,12 @@ def main():
             + "\nConsider running /harvest-learnings to review and promote."
         )
 
-    # Check 3: Advisory compliance (runs silently, logs results)
+    # Check 3: Outcome tracking reminder
+    outcome_msg = check_outcome_tracking()
+    if outcome_msg:
+        messages.append(outcome_msg)
+
+    # Check 4: Advisory compliance (runs silently, logs results)
     check_advisory_compliance()
 
     if not messages:

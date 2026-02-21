@@ -1,13 +1,15 @@
 """Tests for memory.py -- capture, load, scoring, filtering,
-reinforcement, dedup, review, reflection."""
+reinforcement, dedup, review, reflection, outcome tracking."""
 
 import json
 from datetime import date, timedelta
 from pathlib import Path
 
+import pytest
 import yaml
 
 from memory_mcp.tools.memory import (
+    _compute_outcome_score,
     apply_proposal,
     capture_memory,
     capture_reflection,
@@ -15,6 +17,7 @@ from memory_mcp.tools.memory import (
     load_relevant_memories,
     memory_stats,
     reinforce_memory,
+    track_outcome,
     validate_memory_entry,
 )
 
@@ -339,6 +342,70 @@ class TestSchemaValidation:
         error = validate_memory_entry(entry)
         assert error is None
 
+    def test_schema_valid_outcomes(self):
+        entry = {
+            "id": "correction-test",
+            "type": "correction",
+            "summary": "Test",
+            "scope": "universal",
+            "status": "active",
+            "outcomes": [
+                {"result": "merged", "ts": "2026-01-15", "pr": 42},
+                {"result": "positive_feedback", "ts": "2026-01-16", "context": "good"},
+            ],
+        }
+        assert validate_memory_entry(entry) is None
+
+    def test_schema_empty_outcomes_list(self):
+        entry = {
+            "id": "correction-test",
+            "type": "correction",
+            "summary": "Test",
+            "scope": "universal",
+            "status": "active",
+            "outcomes": [],
+        }
+        assert validate_memory_entry(entry) is None
+
+    def test_schema_outcomes_not_list(self):
+        entry = {
+            "id": "correction-test",
+            "type": "correction",
+            "summary": "Test",
+            "scope": "universal",
+            "status": "active",
+            "outcomes": "not a list",
+        }
+        error = validate_memory_entry(entry)
+        assert error is not None
+        assert "list" in error
+
+    def test_schema_outcomes_invalid_result(self):
+        entry = {
+            "id": "correction-test",
+            "type": "correction",
+            "summary": "Test",
+            "scope": "universal",
+            "status": "active",
+            "outcomes": [{"result": "invalid_result", "ts": "2026-01-15"}],
+        }
+        error = validate_memory_entry(entry)
+        assert error is not None
+        assert "invalid_result" in error
+
+    def test_schema_outcomes_missing_ts(self):
+        entry = {
+            "id": "correction-test",
+            "type": "correction",
+            "summary": "Test",
+            "scope": "universal",
+            "status": "active",
+            "outcomes": [{"result": "merged"}],
+        }
+        error = validate_memory_entry(entry)
+        assert error is not None
+        assert "ts" in error
+
 
 class TestDirectoryCreation:
     def test_directories_created_on_first_capture(self, tmp_path, monkeypatch):
@@ -531,6 +598,192 @@ class TestDeduplication:
                 assert data["status"] == "superseded"
 
 
+class TestTrackOutcome:
+    def _create_memory(self, tmp_memory, **overrides):
+        """Helper to write a memory YAML file directly."""
+        defaults = {
+            "id": "correction-test",
+            "type": "correction",
+            "signal": "explicit_correction",
+            "summary": "Test correction",
+            "detail": None,
+            "domain": "billing",
+            "tables": ["billing_transactions"],
+            "phase": "analysis",
+            "scope": "universal",
+            "times_reinforced": 1,
+            "first_seen": date.today().isoformat(),
+            "last_seen": date.today().isoformat(),
+            "source_sessions": [],
+            "status": "active",
+            "promoted_to": None,
+            "superseded_by": None,
+        }
+        defaults.update(overrides)
+        memory_type = defaults["type"]
+        type_dir = tmp_memory / ".claude" / "memory" / f"{memory_type}s"
+        slug = defaults["id"].replace(f"{memory_type}-", "")
+        filepath = type_dir / f"{slug}.yaml"
+        with open(filepath, "w") as f:
+            yaml.dump(defaults, f, default_flow_style=False, sort_keys=False)
+        return filepath
+
+    def test_track_valid_outcome_merged(self, tmp_memory):
+        self._create_memory(tmp_memory, id="correction-voided")
+        result = track_outcome("correction-voided", "merged", pr=42)
+        assert "Tracked outcome" in result
+        assert "merged" in result
+        assert "PR #42" in result
+        assert "1 positive" in result
+
+        filepath = tmp_memory / ".claude" / "memory" / "corrections" / "voided.yaml"
+        with open(filepath) as f:
+            data = yaml.safe_load(f)
+        assert len(data["outcomes"]) == 1
+        assert data["outcomes"][0]["result"] == "merged"
+        assert data["outcomes"][0]["pr"] == 42
+
+    def test_track_outcome_without_pr(self, tmp_memory):
+        self._create_memory(tmp_memory, id="correction-voided")
+        result = track_outcome("correction-voided", "positive_feedback", context="User liked it")
+        assert "Tracked outcome" in result
+        assert "PR #" not in result
+
+        filepath = tmp_memory / ".claude" / "memory" / "corrections" / "voided.yaml"
+        with open(filepath) as f:
+            data = yaml.safe_load(f)
+        assert "pr" not in data["outcomes"][0]
+        assert data["outcomes"][0]["context"] == "User liked it"
+
+    def test_track_invalid_result(self, tmp_memory):
+        self._create_memory(tmp_memory, id="correction-voided")
+        result = track_outcome("correction-voided", "invalid_result")
+        assert "Error" in result
+        assert "Invalid result" in result
+
+    def test_track_memory_not_found(self, tmp_memory):
+        result = track_outcome("nonexistent-id", "merged")
+        assert "Error" in result
+        assert "not found" in result
+
+    def test_track_multiple_outcomes(self, tmp_memory):
+        self._create_memory(tmp_memory, id="correction-voided")
+        track_outcome("correction-voided", "merged", pr=10)
+        track_outcome("correction-voided", "reverted", pr=11)
+        result = track_outcome("correction-voided", "merged", pr=12)
+
+        assert "2 positive" in result
+        assert "1 negative" in result
+
+        filepath = tmp_memory / ".claude" / "memory" / "corrections" / "voided.yaml"
+        with open(filepath) as f:
+            data = yaml.safe_load(f)
+        assert len(data["outcomes"]) == 3
+
+    def test_track_outcome_persisted(self, tmp_memory):
+        self._create_memory(tmp_memory, id="correction-voided")
+        track_outcome("correction-voided", "merged", pr=42, context="Clean merge")
+
+        filepath = tmp_memory / ".claude" / "memory" / "corrections" / "voided.yaml"
+        with open(filepath) as f:
+            data = yaml.safe_load(f)
+        outcome = data["outcomes"][0]
+        assert outcome["result"] == "merged"
+        assert outcome["ts"] == date.today().isoformat()
+        assert outcome["pr"] == 42
+        assert outcome["context"] == "Clean merge"
+
+    def test_track_outcome_on_decayed_memory(self, tmp_memory):
+        self._create_memory(tmp_memory, id="correction-voided", status="decayed")
+        result = track_outcome("correction-voided", "merged")
+        assert "Tracked outcome" in result
+
+    def test_track_outcome_confirmation_format(self, tmp_memory):
+        self._create_memory(tmp_memory, id="correction-voided")
+        result = track_outcome("correction-voided", "closed")
+        assert "Tracked outcome" in result
+        assert "correction-voided" in result
+        assert "closed" in result
+        # closed is neither positive nor negative
+        assert "0 positive" in result
+        assert "0 negative" in result
+
+
+class TestOutcomeScoring:
+    def test_no_outcomes(self):
+        assert _compute_outcome_score({}) == (0.5, 0, 0)
+
+    def test_empty_outcomes_list(self):
+        assert _compute_outcome_score({"outcomes": []}) == (0.5, 0, 0)
+
+    def test_one_positive(self):
+        memory = {"outcomes": [{"result": "merged", "ts": "2026-01-01"}]}
+        score, pos, total = _compute_outcome_score(memory)
+        assert pos == 1
+        assert total == 1
+        assert score == pytest.approx(2 / 3)  # (1+1)/(1+2)
+
+    def test_one_negative(self):
+        memory = {"outcomes": [{"result": "reverted", "ts": "2026-01-01"}]}
+        score, pos, total = _compute_outcome_score(memory)
+        assert pos == 0
+        assert total == 1
+        assert score == pytest.approx(1 / 3)  # (0+1)/(1+2)
+
+    def test_all_positive(self):
+        memory = {"outcomes": [
+            {"result": "merged", "ts": f"2026-01-{i:02d}"} for i in range(1, 11)
+        ]}
+        score, pos, total = _compute_outcome_score(memory)
+        assert pos == 10
+        assert total == 10
+        assert score == pytest.approx(11 / 12)  # (10+1)/(10+2)
+
+    def test_closed_excluded(self):
+        memory = {"outcomes": [
+            {"result": "merged", "ts": "2026-01-01"},
+            {"result": "closed", "ts": "2026-01-02"},
+        ]}
+        score, pos, total = _compute_outcome_score(memory)
+        assert total == 1  # closed not counted
+        assert pos == 1
+
+    def test_mixed_outcomes(self):
+        memory = {"outcomes": [
+            {"result": "merged", "ts": "2026-01-01"},
+            {"result": "merged", "ts": "2026-01-02"},
+            {"result": "reverted", "ts": "2026-01-03"},
+            {"result": "positive_feedback", "ts": "2026-01-04"},
+        ]}
+        score, pos, total = _compute_outcome_score(memory)
+        assert pos == 3
+        assert total == 4
+        assert score == pytest.approx(4 / 6)  # (3+1)/(4+2)
+
+    def test_laplace_smoothing_effect(self):
+        """1/1 positive should rank below 10/10 positive due to Laplace smoothing."""
+        mem_1 = {"outcomes": [{"result": "merged", "ts": "2026-01-01"}]}
+        mem_10 = {"outcomes": [
+            {"result": "merged", "ts": f"2026-01-{i:02d}"} for i in range(1, 11)
+        ]}
+        score_1, _, _ = _compute_outcome_score(mem_1)
+        score_10, _, _ = _compute_outcome_score(mem_10)
+        assert score_10 > score_1
+
+    def test_return_tuple_format(self):
+        memory = {"outcomes": [{"result": "merged", "ts": "2026-01-01"}]}
+        result = _compute_outcome_score(memory)
+        assert isinstance(result, tuple)
+        assert len(result) == 3
+        assert isinstance(result[0], float)
+        assert isinstance(result[1], int)
+        assert isinstance(result[2], int)
+
+    def test_non_list_outcomes(self):
+        """Non-list outcomes field should return neutral score."""
+        assert _compute_outcome_score({"outcomes": "invalid"}) == (0.5, 0, 0)
+
+
 class TestLearningReview:
     def _create_memory(self, tmp_memory, **overrides):
         """Helper to write a memory YAML file directly."""
@@ -619,6 +872,131 @@ class TestLearningReview:
         assert "Pattern Candidates" in result
         assert "Fresh correction" in result
         assert "Mature pattern correction" in result
+
+    def test_learning_review_proposals_sorted_by_outcome(self, tmp_memory):
+        # Low outcome score
+        self._create_memory(
+            tmp_memory,
+            id="correction-low-score",
+            summary="Low outcome score correction",
+            times_reinforced=5,
+            status="pattern_candidate",
+            source_sessions=["inv-1"],
+            last_seen="2026-01-01",
+            outcomes=[
+                {"result": "reverted", "ts": "2026-01-01"},
+                {"result": "reverted", "ts": "2026-01-02"},
+            ],
+        )
+        # High outcome score
+        self._create_memory(
+            tmp_memory,
+            id="correction-high-score",
+            summary="High outcome score correction",
+            times_reinforced=3,
+            status="pattern_candidate",
+            source_sessions=["inv-2"],
+            last_seen="2026-01-01",
+            outcomes=[
+                {"result": "merged", "ts": "2026-01-01"},
+                {"result": "merged", "ts": "2026-01-02"},
+                {"result": "merged", "ts": "2026-01-03"},
+            ],
+        )
+        result = learning_review()
+        # Check ordering within Proposals section
+        proposals = result[result.find("## Proposals"):]
+        high_pos = proposals.find("High outcome score correction")
+        low_pos = proposals.find("Low outcome score correction")
+        assert high_pos < low_pos
+
+    def test_learning_review_outcome_stats_displayed(self, tmp_memory):
+        self._create_memory(
+            tmp_memory,
+            id="correction-with-outcomes",
+            summary="Correction with outcomes",
+            times_reinforced=3,
+            status="pattern_candidate",
+            source_sessions=["inv-1"],
+            outcomes=[
+                {"result": "merged", "ts": "2026-01-01"},
+                {"result": "merged", "ts": "2026-01-02"},
+                {"result": "reverted", "ts": "2026-01-03"},
+            ],
+        )
+        result = learning_review()
+        assert "2/3 positive" in result
+        assert "score: 0.60" in result
+
+    def test_learning_review_no_outcome_data(self, tmp_memory):
+        self._create_memory(
+            tmp_memory,
+            id="correction-no-outcomes",
+            summary="No outcomes correction",
+            times_reinforced=3,
+            status="pattern_candidate",
+            source_sessions=["inv-1"],
+        )
+        result = learning_review()
+        assert "No outcome data" in result
+
+    def test_learning_review_high_outcome_above_low(self, tmp_memory):
+        """High outcome memory should be Proposal 1, low outcome Proposal 2."""
+        self._create_memory(
+            tmp_memory,
+            id="correction-bad",
+            summary="Bad outcome correction",
+            times_reinforced=5,
+            status="pattern_candidate",
+            source_sessions=["inv-1", "inv-2"],
+            last_seen="2026-01-01",
+            outcomes=[{"result": "reverted", "ts": "2026-01-01"}],
+        )
+        self._create_memory(
+            tmp_memory,
+            id="correction-good",
+            summary="Good outcome correction",
+            times_reinforced=3,
+            status="pattern_candidate",
+            source_sessions=["inv-3"],
+            last_seen="2026-01-01",
+            outcomes=[{"result": "merged", "ts": "2026-01-01"}],
+        )
+        result = learning_review()
+        # Check ordering within Proposals section
+        proposals = result[result.find("## Proposals"):]
+        good_pos = proposals.find("Good outcome correction")
+        bad_pos = proposals.find("Bad outcome correction")
+        assert good_pos < bad_pos
+
+    def test_learning_review_tiebreak_by_reinforcement(self, tmp_memory):
+        """Same outcome score should tiebreak by reinforcement count."""
+        self._create_memory(
+            tmp_memory,
+            id="correction-less-reinforced",
+            summary="Less reinforced correction",
+            times_reinforced=3,
+            status="pattern_candidate",
+            source_sessions=["inv-1"],
+            last_seen="2026-01-01",
+            outcomes=[{"result": "merged", "ts": "2026-01-01"}],
+        )
+        self._create_memory(
+            tmp_memory,
+            id="correction-more-reinforced",
+            summary="More reinforced correction",
+            times_reinforced=5,
+            status="pattern_candidate",
+            source_sessions=["inv-1", "inv-2"],
+            last_seen="2026-01-01",
+            outcomes=[{"result": "merged", "ts": "2026-01-01"}],
+        )
+        result = learning_review()
+        # Check ordering within Proposals section
+        proposals = result[result.find("## Proposals"):]
+        more_pos = proposals.find("More reinforced correction")
+        less_pos = proposals.find("Less reinforced correction")
+        assert more_pos < less_pos
 
 
 class TestCaptureReflection:

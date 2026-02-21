@@ -60,6 +60,11 @@ VALID_SIGNALS = {
 }
 EXCLUDED_STATUSES = {"decayed", "promoted", "rejected", "superseded"}
 
+# Outcome tracking
+VALID_OUTCOME_RESULTS = {"merged", "reverted", "closed", "positive_feedback", "negative_feedback"}
+POSITIVE_OUTCOMES = {"merged", "positive_feedback"}
+NEGATIVE_OUTCOMES = {"reverted", "negative_feedback"}
+
 # Scoring weights
 WEIGHT_TABLE = 5
 WEIGHT_DOMAIN = 3
@@ -157,6 +162,26 @@ def validate_memory_entry(entry: dict) -> Optional[str]:
             f"Invalid status '{entry['status']}'. "
             f"Must be one of: {', '.join(sorted(VALID_STATUSES))}"
         )
+
+    # Validate outcomes field if present
+    outcomes = entry.get("outcomes")
+    if outcomes is not None:
+        if not isinstance(outcomes, list):
+            return "Field 'outcomes' must be a list"
+        for i, outcome in enumerate(outcomes):
+            if not isinstance(outcome, dict):
+                return f"Outcome entry {i} must be a dict"
+            if "result" not in outcome:
+                return f"Outcome entry {i} missing required field 'result'"
+            if outcome["result"] not in VALID_OUTCOME_RESULTS:
+                return (
+                    f"Outcome entry {i} has invalid result '{outcome['result']}'. "
+                    f"Must be one of: {', '.join(sorted(VALID_OUTCOME_RESULTS))}"
+                )
+            if "ts" not in outcome:
+                return f"Outcome entry {i} missing required field 'ts'"
+            if not isinstance(outcome["ts"], str):
+                return f"Outcome entry {i} field 'ts' must be a string"
 
     return None
 
@@ -615,7 +640,32 @@ def _format_memories(
     return "".join(parts).strip()
 
 
-# --- Helpers for reinforcement and deduplication ---
+# --- Helpers for reinforcement, deduplication, and outcome scoring ---
+
+
+def _compute_outcome_score(memory: dict) -> tuple[float, int, int]:
+    """Laplace-smoothed outcome score: (positive+1)/(scoreable+2).
+
+    Returns (adjusted_score, positive_count, scoreable_count).
+    Memories with no outcomes return (0.5, 0, 0) -- neutral default.
+    """
+    outcomes = memory.get("outcomes", [])
+    if not isinstance(outcomes, list):
+        return (0.5, 0, 0)
+
+    scoreable_results = POSITIVE_OUTCOMES | NEGATIVE_OUTCOMES
+    scoreable = [
+        o for o in outcomes
+        if isinstance(o, dict) and o.get("result") in scoreable_results
+    ]
+    positive = sum(1 for o in scoreable if o.get("result") in POSITIVE_OUTCOMES)
+
+    scoreable_count = len(scoreable)
+    if scoreable_count == 0:
+        return (0.5, 0, 0)
+
+    adjusted_score = (positive + 1) / (scoreable_count + 2)
+    return (adjusted_score, positive, scoreable_count)
 
 
 def _find_memory_by_id(memory_id: str) -> tuple[Optional[Path], Optional[dict]]:
@@ -937,6 +987,99 @@ def reinforce_memory(memory_id: str, session: str = "") -> str:
 
 
 @register_tool(
+    name="track_outcome",
+    description=(
+        "Record a real-world outcome (PR merged/reverted, user feedback) for a memory. "
+        "Call after a PR is merged or reverted, or when user gives feedback on a "
+        "memory-influenced behavior. Outcomes feed into learning_review scoring."
+    ),
+    parameters={
+        "memory_id": {
+            "type": "string",
+            "description": "ID of the memory to track outcome for",
+        },
+        "result": {
+            "type": "string",
+            "description": (
+                "Outcome result: merged, reverted, closed, "
+                "positive_feedback, negative_feedback"
+            ),
+        },
+        "pr": {
+            "type": "integer",
+            "description": "PR number (optional)",
+        },
+        "context": {
+            "type": "string",
+            "description": "Additional context about the outcome (optional)",
+        },
+    },
+    required=["memory_id", "result"],
+)
+def track_outcome(
+    memory_id: str,
+    result: str,
+    pr: int = None,
+    context: str = "",
+) -> str:
+    """Record a real-world outcome for a memory.
+
+    Args:
+        memory_id: ID of the memory to track outcome for.
+        result: Outcome type (merged, reverted, closed, positive_feedback, negative_feedback).
+        pr: Optional PR number.
+        context: Optional context string.
+
+    Returns:
+        Confirmation with summary stats, or error.
+    """
+    if result not in VALID_OUTCOME_RESULTS:
+        return (
+            f"Error: Invalid result '{result}'. "
+            f"Must be one of: {', '.join(sorted(VALID_OUTCOME_RESULTS))}"
+        )
+
+    filepath, entry = _find_memory_by_id(memory_id)
+
+    if filepath is None or entry is None:
+        return f"Error: Memory '{memory_id}' not found."
+
+    # Build outcome entry
+    outcome_entry = {
+        "result": result,
+        "ts": date.today().isoformat(),
+    }
+    if pr is not None:
+        outcome_entry["pr"] = pr
+    if context:
+        outcome_entry["context"] = context
+
+    # Append to outcomes list
+    outcomes = entry.get("outcomes", [])
+    if not isinstance(outcomes, list):
+        outcomes = []
+    outcomes.append(outcome_entry)
+    entry["outcomes"] = outcomes
+
+    # Write back
+    try:
+        _atomic_write_yaml(filepath, entry)
+    except Exception as e:
+        logger.error(f"Error tracking outcome: {e}")
+        return f"Error tracking outcome: {str(e)}"
+
+    # Compute summary stats
+    positive = sum(1 for o in outcomes if o.get("result") in POSITIVE_OUTCOMES)
+    negative = sum(1 for o in outcomes if o.get("result") in NEGATIVE_OUTCOMES)
+
+    pr_info = f" (PR #{pr})" if pr is not None else ""
+    return (
+        f"Tracked outcome for '{memory_id}': {result}{pr_info}. "
+        f"Total: {positive} positive, {negative} negative."
+    )
+
+
+@register_tool(
     name="learning_review",
     description=(
         "Generate an end-of-session learning summary with proposals for "
@@ -1015,6 +1158,16 @@ def learning_review(investigation: str = "") -> str:
                 if _has_contradiction(active_summary, promoted.get("summary", "")):
                     rollback_candidates.append((promoted, active))
 
+    # Sort pattern candidates by outcome score DESC, tiebreak by reinforcement DESC
+    if pattern_candidates:
+        pattern_candidates.sort(
+            key=lambda m: (
+                _compute_outcome_score(m)[0],
+                m.get("times_reinforced", 0),
+            ),
+            reverse=True,
+        )
+
     if not todays_memories and not pattern_candidates and not rollback_candidates:
         return "No learnings to review this session."
 
@@ -1071,6 +1224,12 @@ def learning_review(investigation: str = "") -> str:
             parts.append(f"**Evidence:** {reinforced}x reinforced across {len(sessions)} sessions")
             if sessions:
                 parts.append(f" ({', '.join(sessions[:5])})")
+            # Outcome stats
+            score, pos, scoreable = _compute_outcome_score(mem)
+            if scoreable > 0:
+                parts.append(f"\n**Outcomes:** {pos}/{scoreable} positive (score: {score:.2f})")
+            else:
+                parts.append("\n**Outcomes:** No outcome data")
             parts.append(f"\n**Scope:** {scope_label}\n\n")
             parts.append("**Action:** `[Accept / Reject / Edit / Defer]`\n\n---\n\n")
 

@@ -80,11 +80,33 @@ class TestFindHarvestCandidates:
             assert memory_check.find_harvest_candidates() == []
 
 
+class TestCheckOutcomeTracking:
+    def test_no_transcript(self):
+        with patch.dict(os.environ, {}, clear=True):
+            assert memory_check.check_outcome_tracking() is None
+
+    def test_pr_activity_no_tracking(self):
+        with patch.dict(os.environ, {"CLAUDE_TRANSCRIPT": "Then I ran gh pr merge #42"}):
+            result = memory_check.check_outcome_tracking()
+            assert result is not None
+            assert "track_outcome" in result
+
+    def test_pr_activity_with_tracking(self):
+        transcript = "I ran gh pr merge #42 and then called track_outcome for the memory"
+        with patch.dict(os.environ, {"CLAUDE_TRANSCRIPT": transcript}):
+            assert memory_check.check_outcome_tracking() is None
+
+    def test_no_pr_activity(self):
+        with patch.dict(os.environ, {"CLAUDE_TRANSCRIPT": "Just some regular coding work"}):
+            assert memory_check.check_outcome_tracking() is None
+
+
 class TestMain:
     def test_no_issues_returns_continue(self):
         with (
             patch.object(memory_check, "check_memory_activity", return_value=True),
             patch.object(memory_check, "find_harvest_candidates", return_value=[]),
+            patch.object(memory_check, "check_outcome_tracking", return_value=None),
         ):
             result = memory_check.main()
             assert result == {"continue": True}
@@ -93,6 +115,7 @@ class TestMain:
         with (
             patch.object(memory_check, "check_memory_activity", return_value=False),
             patch.object(memory_check, "find_harvest_candidates", return_value=[]),
+            patch.object(memory_check, "check_outcome_tracking", return_value=None),
         ):
             result = memory_check.main()
             assert result["continue"] is True
@@ -103,6 +126,7 @@ class TestMain:
         with (
             patch.object(memory_check, "check_memory_activity", return_value=True),
             patch.object(memory_check, "find_harvest_candidates", return_value=candidates),
+            patch.object(memory_check, "check_outcome_tracking", return_value=None),
         ):
             result = memory_check.main()
             assert result["continue"] is True
@@ -113,7 +137,21 @@ class TestMain:
         with (
             patch.object(memory_check, "check_memory_activity", return_value=False),
             patch.object(memory_check, "find_harvest_candidates", return_value=candidates),
+            patch.object(memory_check, "check_outcome_tracking", return_value=None),
         ):
             result = memory_check.main()
             assert "/reflect" in result["message"]
             assert "/harvest-learnings" in result["message"]
+
+    def test_outcome_reminder_combined(self):
+        with (
+            patch.object(memory_check, "check_memory_activity", return_value=True),
+            patch.object(memory_check, "find_harvest_candidates", return_value=[]),
+            patch.object(
+                memory_check, "check_outcome_tracking",
+                return_value="PR activity detected but no outcome tracking.",
+            ),
+        ):
+            result = memory_check.main()
+            assert result["continue"] is True
+            assert "outcome tracking" in result["message"]
